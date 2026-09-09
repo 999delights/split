@@ -1,0 +1,26 @@
+# Xcode build output
+build/
+DerivedData/
+*.xcarchive
+*.dSYM
+*.dSYM.zip
+
+# Per-user Xcode state
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+
+# CocoaPods and Swift Package Manager generated state
+Pods/
+.build/
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+Secrets.xcconfig
+GoogleService-Info.local.plist
+
+# macOS
+.DS_Store
+
