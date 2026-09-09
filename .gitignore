@@ -24,3 +24,9 @@ GoogleService-Info.local.plist
 # macOS
 .DS_Store
 
+
+# Flutter / Python local artifacts
+__pycache__/
+*.pyc
+*.db
+*.sqlite*
