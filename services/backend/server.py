@@ -43,6 +43,9 @@ def snapshot(c):
     result={'profile':dict(c.execute('SELECT * FROM profile').fetchone()),'groups':[]}
     for row in c.execute('SELECT * FROM groups ORDER BY rowid DESC'):
         g=dict(row); ident=g['id']
+        if c.execute("SELECT 1 FROM sqlite_master WHERE name='group_legacy_metadata'").fetchone():
+            meta=c.execute('SELECT color,profile_pic,date_json FROM group_legacy_metadata WHERE group_id=?',(ident,)).fetchone()
+            if meta: g.update(dict(meta))
         g['members']=[dict(x) for x in c.execute('SELECT * FROM members WHERE group_id=?',(ident,))]
         balances={x['id']:0 for x in g['members']}
         g['expenses']=[]

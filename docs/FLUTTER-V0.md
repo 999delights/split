@@ -22,7 +22,7 @@ settlements, activity, rename group/profile, light/dark appearance and refresh.
 Original email/Apple/Google authentication is not connected to the new API.
 The welcome screen clearly offers a local preview rather than pretending to
 authenticate. Invitations, profile-photo upload, push and destructive operations
-remain pending. Existing Firestore data is not imported or modified.
+remain pending. Original Firebase is not modified. A verified local cache copy is now imported; see recovery notes below.
 
 ## Run
 
@@ -60,3 +60,32 @@ flutter build ios --simulator --dart-define-from-file=/absolute/private/config.j
 
 No backend deployment is configured by this change. Dev code push must not be
 mistaken for a running public Split API.
+
+## Local recovery and closer expense flow
+
+The simulator's Firestore cache was copied while the original application was
+stopped, then the original application was restarted. Only a separate working
+copy was opened by LevelDB. Recovery yielded 4 groups and all 29 expenses referenced
+by those groups. The single registered profile and offline participants were
+preserved. Each expense total equals its shares; the imported net balance is -27,
+matching the original home. No currency was stored in the original schema, so the
+import does not invent a currency. Raw documents and legacy member mappings remain
+in the private local database for reconciliation. No personal data is in Git.
+
+This verifies the cached groups, not completeness of the entire Firebase project
+or freshness against the server. The immutable cache copy, export JSON and imported
+SQLite are outside this repository in the workspace's private `.local/split-import`
+directory. Original Firebase is unchanged. The demo database is also retained.
+
+`decode_firestore_cache.py` consumes a hex dump produced from a **working copy** by
+`export_leveldb_copy.cc` (built against the pinned legacy LevelDB sources).
+`import_legacy.py EXPORT_JSON NEW_DB_PATH` refuses to overwrite an existing database
+and checks references and exact minor units before importing.
+
+The expense screen now follows the original sequence: What is this for? → How
+much was …? → Splitting … with → split review. Participant cards are 180 high,
+blue at 15% opacity when selected, with a grey 30% border and purple editable
+amounts. Manual edits turn the indicator red; the remainder is distributed over
+unlocked selected participants. The all-participants switch selects/clears all.
+The confirmation action requires an exact total, improving the old ±0.5 tolerance.
+Widget tests cover selection, color, manual remainder and reaching review.

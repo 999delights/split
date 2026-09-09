@@ -9,6 +9,24 @@ const apiBase = String.fromEnvironment(
 );
 const devToken = String.fromEnvironment('SPLIT_DEV_TOKEN');
 const green = Color(0xff2bc653);
+const legacyColors = <String, Color>{
+  'Cgroup11': Color(0xff8b8b8a),
+  'Cgroup10': Color(0xff46c691),
+  'Cgroup8': Color(0xff5fbcac),
+  'Cgroup9': Color(0xff089be1),
+  'Cgroup2': Color(0xff568070),
+  'Cgroup3': Color(0xff986449),
+  'Cgroup5': Color(0xff649767),
+  'Cgroup4': Color(0xffbd7780),
+  'Cgroup16': Color(0xffaa7942),
+  'Cgroup1': Color(0xff829bb2),
+  'Cgroup12': Color(0xff3f667e),
+  'Cgroup13': Color(0xffbfbc77),
+  'Cgroup15': Color(0xff009193),
+  'Cgroup14': Color(0xff4b4e12),
+  'Cgroup6': Color(0xffa7ac00),
+  'Cgroup7': Color(0xff88a3ff),
+};
 final appearance = ValueNotifier<ThemeMode>(ThemeMode.system);
 void main() => runApp(const SplitApp());
 
@@ -93,29 +111,31 @@ class Api {
 }
 
 String money(dynamic n, [String currency = 'RON']) =>
-    '${((n as num) / 100).toStringAsFixed(2)} $currency';
+    '${((n as num) / 100).toStringAsFixed(2).replaceFirst(RegExp(r"\.?0+$"), "")} $currency'
+        .trim();
 void message(BuildContext c, Object e) => ScaffoldMessenger.of(c).showSnackBar(
   SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
 );
-Widget avatar(String text, {String? asset, double size = 70}) => Container(
-  width: size,
-  height: size,
-  decoration: BoxDecoration(
-    color: const Color(0xffe9e6f2),
-    shape: asset == null ? BoxShape.circle : BoxShape.rectangle,
-    borderRadius: asset == null ? null : BorderRadius.circular(10),
-  ),
-  alignment: Alignment.center,
-  child: asset != null
-      ? Padding(
-          padding: const EdgeInsets.all(3),
-          child: Image.asset('assets/$asset.png', fit: BoxFit.contain),
-        )
-      : Text(
-          text.isEmpty ? '?' : text[0].toUpperCase(),
-          style: TextStyle(fontSize: size * .4, color: Colors.black),
-        ),
-);
+Widget avatar(String text, {String? asset, String? color, double size = 70}) =>
+    Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: legacyColors[color] ?? const Color(0xffe9e6f2),
+        shape: asset == null ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: asset == null ? null : BorderRadius.circular(10),
+      ),
+      alignment: Alignment.center,
+      child: asset != null
+          ? Padding(
+              padding: const EdgeInsets.all(3),
+              child: Image.asset('assets/$asset.png', fit: BoxFit.contain),
+            )
+          : Text(
+              text.isEmpty ? '?' : text[0].toUpperCase(),
+              style: TextStyle(fontSize: size * .4, color: Colors.black),
+            ),
+    );
 Widget tile(BuildContext c, List<Widget> children, {VoidCallback? tap}) =>
     InkWell(
       onTap: tap,
@@ -420,6 +440,7 @@ class _HomeState extends State<Home> {
                           avatar(
                             g['name'],
                             asset: 'group${g['icon']}',
+                            color: g['color'],
                             size: 35,
                           ),
                         ],
@@ -713,7 +734,16 @@ class _GroupPageState extends State<GroupPage> {
                                 'by ${members.firstWhere((m) => m['id'] == e['payer'])['name']}',
                               ),
                               trailing: Text(money(e['amount'], g['currency'])),
-                              onTap: () => spend(e),
+                              onTap: () async {
+                                await Navigator.push(
+                                  c,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        PaymentDetails(group: g, expense: e),
+                                  ),
+                                );
+                                await refresh();
+                              },
                             ),
                           ),
                         for (final s in g['settlements'])
@@ -787,6 +817,101 @@ class _GroupPageState extends State<GroupPage> {
   }
 }
 
+class PaymentDetails extends StatelessWidget {
+  final Map<String, dynamic> group, expense;
+  const PaymentDetails({super.key, required this.group, required this.expense});
+  @override
+  Widget build(BuildContext c) {
+    final members = group['members'] as List;
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(
+          (expense['created'] as String).split('T')[0],
+          style: const TextStyle(fontSize: 15),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text('@${group['name']}'),
+          ),
+          const SizedBox(height: 30),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () async {
+                await Navigator.push(
+                  c,
+                  MaterialPageRoute(
+                    builder: (_) => ExpenseForm(group: group, expense: expense),
+                  ),
+                );
+                if (c.mounted) Navigator.pop(c);
+              },
+              child: const Text('Edit', style: TextStyle(color: Colors.red)),
+            ),
+          ),
+          Row(
+            children: [
+              const Icon(CupertinoIcons.tag),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  expense['name'],
+                  style: const TextStyle(fontSize: 25),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              const Icon(CupertinoIcons.money_dollar),
+              const SizedBox(width: 12),
+              Text(
+                money(expense['amount'], group['currency']),
+                style: const TextStyle(fontSize: 20),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'by ${members.firstWhere((m) => m['id'] == expense['payer'])['name']}',
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'with ${(expense['shares'] as Map).values.where((v) => v > 0).length}',
+          ),
+          const SizedBox(height: 12),
+          for (final m in members)
+            if ((expense['shares'][m['id']] ?? 0) > 0)
+              Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withValues(alpha: .12),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: ListTile(
+                  title: Text(m['name']),
+                  trailing: Text(
+                    money(expense['shares'][m['id']], group['currency']),
+                  ),
+                ),
+              ),
+        ],
+      ),
+    );
+  }
+}
+
 class ExpenseForm extends StatefulWidget {
   final Map<String, dynamic> group;
   final Map<String, dynamic>? expense;
@@ -798,9 +923,7 @@ class ExpenseForm extends StatefulWidget {
 class _ExpenseFormState extends State<ExpenseForm> {
   late final name = TextEditingController(text: widget.expense?['name']);
   late final amount = TextEditingController(
-    text: widget.expense == null
-        ? ''
-        : ((widget.expense!['amount'] as int) / 100).toStringAsFixed(2),
+    text: widget.expense == null ? '' : money(widget.expense!['amount'], ''),
   );
   late String payer =
       widget.expense?['payer'] ?? widget.group['members'][0]['id'];
@@ -809,11 +932,17 @@ class _ExpenseFormState extends State<ExpenseForm> {
       m['id']: TextEditingController(
         text: widget.expense == null
             ? ''
-            : ((widget.expense!['shares'][m['id']] ?? 0) / 100).toStringAsFixed(
-                2,
-              ),
+            : money(widget.expense!['shares'][m['id']] ?? 0, ''),
       ),
   };
+  late final Set<String> selected = widget.expense == null
+      ? <String>{}
+      : (widget.expense!['shares'] as Map).entries
+            .where((e) => (e.value as num) > 0)
+            .map((e) => e.key.toString())
+            .toSet();
+  final Set<String> manual = {};
+  int step = 0;
   bool busy = false;
   @override
   void dispose() {
@@ -825,140 +954,436 @@ class _ExpenseFormState extends State<ExpenseForm> {
     super.dispose();
   }
 
-  int parse(String v) {
-    if (!RegExp(r'^\d+([.,]\d{1,2})?$').hasMatch(v.trim())) {
-      throw const FormatException('Use an amount with up to two decimals');
+  int get total => parseMinor(amount.text);
+  int get assigned => shares.entries
+      .where((e) => selected.contains(e.key))
+      .fold(
+        0,
+        (n, e) => n + (e.value.text.isEmpty ? 0 : parseMinor(e.value.text)),
+      );
+  bool get validSplit {
+    try {
+      return selected.isNotEmpty && assigned == total && total > 0;
+    } catch (_) {
+      return false;
     }
-    final p = v.trim().replaceAll(',', '.').split('.');
-    return int.parse(p[0]) * 100 +
-        (p.length == 1 ? 0 : int.parse(p[1].padRight(2, '0')));
+  }
+
+  void redistribute() {
+    try {
+      final fixed = {
+        for (final id in manual.where(selected.contains))
+          id: shares[id]!.text.isEmpty ? 0 : parseMinor(shares[id]!.text),
+      };
+      final result = allocateShares(total, selected.toList(), fixed);
+      for (final e in shares.entries) {
+        if (!manual.contains(e.key)) {
+          e.value.text = selected.contains(e.key)
+              ? money(result[e.key] ?? 0, '')
+              : '';
+        }
+      }
+    } catch (_) {
+      /* Keep entered values visible; confirmation stays disabled. */
+    }
+  }
+
+  void toggle(String id) {
+    setState(() {
+      if (!selected.add(id)) {
+        selected.remove(id);
+        shares[id]!.clear();
+      }
+      manual.remove(id);
+      redistribute();
+    });
+  }
+
+  void next() {
+    try {
+      if (step == 0 && name.text.trim().isEmpty) return;
+      if (step == 1 && total <= 0) return;
+      if (step == 1) {
+        manual.clear();
+        redistribute();
+      }
+      if (step == 2 && !validSplit) return;
+      FocusScope.of(context).unfocus();
+      setState(() => step++);
+    } catch (e) {
+      message(context, e);
+    }
+  }
+
+  Widget action(String label, VoidCallback? press) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+    child: SizedBox(
+      width: double.infinity,
+      height: 50,
+      child: ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        onPressed: press,
+        child: Text(
+          label,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+        ),
+      ),
+    ),
+  );
+  Widget heading(Widget child) => Padding(
+    padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
+    child: Align(
+      alignment: Alignment.centerLeft,
+      child: DefaultTextStyle(
+        style: TextStyle(
+          fontSize: 25,
+          fontWeight: FontWeight.w800,
+          color: Theme.of(context).colorScheme.onSurface,
+        ),
+        child: child,
+      ),
+    ),
+  );
+  Future<void> save() async {
+    if (!validSplit) return;
+    setState(() => busy = true);
+    try {
+      await Api().call(
+        '/groups/${widget.group['id']}/expenses${widget.expense == null ? '' : '/${widget.expense!['id']}'}',
+        {
+          'name': name.text,
+          'amount': total,
+          'payer': payer,
+          'shares': {
+            for (final id in selected) id: parseMinor(shares[id]!.text),
+          },
+        },
+      );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) message(context, e);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   @override
   Widget build(BuildContext c) => Scaffold(
     appBar: AppBar(
-      title: Text(widget.expense == null ? 'Spend' : 'Edit payment'),
+      leadingWidth: 80,
+      leading: TextButton(
+        onPressed: () {
+          if (step == 0) {
+            Navigator.pop(c);
+          } else {
+            setState(() => step--);
+          }
+        },
+        child: const Text('Back', style: TextStyle(color: Colors.grey)),
+      ),
+      title: Text(
+        step == 3 ? 'split review' : 'split bill',
+        style: const TextStyle(fontSize: 17),
+      ),
+      centerTitle: true,
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(c),
-          child: const Text('Cancel'),
+          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
         ),
       ],
     ),
-    body: ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Text(
-          '@${widget.group['name']}',
-          style: const TextStyle(color: Colors.grey),
-        ),
-        const SizedBox(height: 20),
-        const Text('What did you spend on?', style: TextStyle(fontSize: 25)),
-        const SizedBox(height: 12),
-        TextField(
-          controller: name,
-          decoration: const InputDecoration(
-            prefixIcon: Icon(CupertinoIcons.tag),
-            hintText: 'Payment name',
-          ),
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: amount,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(
-            prefixIcon: const Icon(CupertinoIcons.money_dollar),
-            hintText: 'Amount (${widget.group['currency']})',
-          ),
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          initialValue: payer,
-          decoration: const InputDecoration(labelText: 'Paid by'),
-          items: [
-            for (final m in widget.group['members'])
-              DropdownMenuItem<String>(value: m['id'], child: Text(m['name'])),
-          ],
-          onChanged: (v) => setState(() => payer = v!),
-        ),
-        const SizedBox(height: 25),
-        const Text('Splitting with', style: TextStyle(fontSize: 25)),
-        TextButton(
-          onPressed: () {
-            try {
-              final n = parse(amount.text);
-              int i = 0;
-              for (final field in shares.values) {
-                field.text =
-                    ((n ~/ shares.length + (i++ < n % shares.length ? 1 : 0)) /
-                            100)
-                        .toStringAsFixed(2);
-              }
-              setState(() {});
-            } catch (e) {
-              message(c, e);
-            }
-          },
-          child: const Text('Split equally'),
-        ),
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: 2,
-          crossAxisSpacing: 20,
-          mainAxisSpacing: 20,
-          childAspectRatio: 1,
-          children: [
-            for (final m in widget.group['members'])
-              tile(c, [
-                avatar(m['name'], size: 45),
-                Text(m['name'], style: const TextStyle(fontSize: 18)),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: shares[m['id']],
-                  textAlign: TextAlign.center,
-                  keyboardType: const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  decoration: const InputDecoration(hintText: '0'),
+    body: SafeArea(
+      child: step < 2
+          ? Column(
+              children: [
+                const Spacer(),
+                heading(
+                  step == 0
+                      ? const Text('What is this for?')
+                      : Text.rich(
+                          TextSpan(
+                            children: [
+                              const TextSpan(text: 'How much was\n'),
+                              TextSpan(
+                                text: name.text.trim(),
+                                style: const TextStyle(color: Colors.purple),
+                              ),
+                              const TextSpan(text: '?'),
+                            ],
+                          ),
+                        ),
                 ),
-              ]),
-          ],
-        ),
-        const SizedBox(height: 25),
-        ElevatedButton(
-          onPressed: busy
-              ? null
-              : () async {
-                  try {
-                    final values = {
-                      for (final e in shares.entries)
-                        e.key: e.value.text.trim().isEmpty
-                            ? 0
-                            : parse(e.value.text),
-                    };
-                    setState(() => busy = true);
-                    await Api().call(
-                      '/groups/${widget.group['id']}/expenses${widget.expense == null ? '' : '/${widget.expense!['id']}'}',
-                      {
-                        'name': name.text,
-                        'amount': parse(amount.text),
-                        'payer': payer,
-                        'shares': values,
-                      },
-                    );
-                    if (c.mounted) Navigator.pop(c);
-                  } catch (e) {
-                    if (c.mounted) message(c, e);
-                  } finally {
-                    if (mounted) setState(() => busy = false);
-                  }
-                },
-          child: Text(busy ? 'Saving…' : 'Confirm'),
-        ),
-      ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextField(
+                    key: ValueKey(step),
+                    controller: step == 0 ? name : amount,
+                    autofocus: true,
+                    keyboardType: step == 0
+                        ? TextInputType.text
+                        : const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: step == 0 ? TextAlign.left : TextAlign.center,
+                    style: TextStyle(
+                      fontSize: step == 0 ? 25 : 30,
+                      color: Colors.purple,
+                      fontWeight: step == 0 ? FontWeight.w500 : FontWeight.w800,
+                    ),
+                    decoration: InputDecoration(
+                      filled: false,
+                      hintText: step == 0 ? "ex.'Groceries'" : '0',
+                      border: step == 0
+                          ? const UnderlineInputBorder()
+                          : InputBorder.none,
+                      suffixIcon: step == 0
+                          ? IconButton(
+                              onPressed: () {
+                                name.clear();
+                                setState(() {});
+                              },
+                              icon: const Icon(
+                                CupertinoIcons.clear_circled_solid,
+                                color: Colors.grey,
+                                size: 18,
+                              ),
+                            )
+                          : null,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ),
+                action(
+                  'Continue',
+                  (step == 0
+                          ? name.text.trim().isNotEmpty
+                          : amount.text.isNotEmpty)
+                      ? next
+                      : null,
+                ),
+              ],
+            )
+          : step == 2
+          ? Column(
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: heading(
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              const TextSpan(text: 'Splitting '),
+                              TextSpan(
+                                text: amount.text,
+                                style: const TextStyle(color: Colors.purple),
+                              ),
+                              const TextSpan(text: '\nwith'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: CupertinoSwitch(
+                        value: selected.length == shares.length,
+                        onChanged: (v) {
+                          setState(() {
+                            selected.clear();
+                            manual.clear();
+                            if (v) selected.addAll(shares.keys);
+                            redistribute();
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                Expanded(
+                  child: GridView.count(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 20,
+                    mainAxisSpacing: 20,
+                    childAspectRatio:
+                        (MediaQuery.sizeOf(c).width - 52) / 2 / 180,
+                    children: [
+                      for (final m in widget.group['members'])
+                        GestureDetector(
+                          onTap: () => toggle(m['id']),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            decoration: BoxDecoration(
+                              color: selected.contains(m['id'])
+                                  ? Colors.blue.withValues(alpha: .15)
+                                  : Colors.white.withValues(alpha: .15),
+                              borderRadius: BorderRadius.circular(15),
+                              border: Border.all(
+                                color: Colors.grey.withValues(alpha: .3),
+                                width: 2,
+                              ),
+                            ),
+                            child: Stack(
+                              children: [
+                                Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        m['name'],
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 40,
+                                        ),
+                                        child: TextField(
+                                          controller: shares[m['id']],
+                                          enabled: selected.contains(m['id']),
+                                          textAlign: TextAlign.center,
+                                          keyboardType:
+                                              const TextInputType.numberWithOptions(
+                                                decimal: true,
+                                              ),
+                                          style: const TextStyle(
+                                            fontSize: 17,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.purple,
+                                          ),
+                                          decoration: const InputDecoration(
+                                            filled: false,
+                                            hintText: '0',
+                                            isDense: true,
+                                            contentPadding: EdgeInsets.only(
+                                              top: 12,
+                                              bottom: 8,
+                                            ),
+                                            border: UnderlineInputBorder(),
+                                          ),
+                                          onChanged: (_) {
+                                            setState(() {
+                                              manual.add(m['id']);
+                                              redistribute();
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 16,
+                                  bottom: 25,
+                                  child: Text(
+                                    '.',
+                                    style: TextStyle(
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w600,
+                                      color: manual.contains(m['id'])
+                                          ? Colors.red
+                                          : Colors.grey,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                action(
+                  'Split with ${selected.isEmpty ? '' : selected.length}',
+                  validSplit ? next : null,
+                ),
+              ],
+            )
+          : Column(
+              children: [
+                const SizedBox(height: 35),
+                heading(Text(name.text)),
+                Text(
+                  money(total, widget.group['currency']),
+                  style: const TextStyle(fontSize: 25, color: Colors.purple),
+                ),
+                Text('@${widget.group['name']}'),
+                Text('with ${selected.length}'),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: DropdownButtonFormField<String>(
+                    initialValue: payer,
+                    decoration: const InputDecoration(labelText: 'by'),
+                    items: [
+                      for (final m in widget.group['members'])
+                        DropdownMenuItem<String>(
+                          value: m['id'],
+                          child: Text(m['name']),
+                        ),
+                    ],
+                    onChanged: (v) => setState(() => payer = v!),
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    children: [
+                      for (final m in widget.group['members'])
+                        if (selected.contains(m['id']))
+                          ListTile(
+                            title: Text(m['name']),
+                            trailing: Text(
+                              shares[m['id']]!.text,
+                              style: const TextStyle(
+                                color: Colors.purple,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                    ],
+                  ),
+                ),
+                action(busy ? 'Saving…' : 'Confirm', busy ? null : save),
+              ],
+            ),
     ),
   );
+}
+
+int parseMinor(String raw) {
+  final v = raw.trim().replaceAll(',', '.');
+  if (!RegExp(r'^\d+([.]\d{1,2})?$').hasMatch(v)) {
+    throw const FormatException('Use up to two decimal places');
+  }
+  final p = v.split('.');
+  return int.parse(p[0]) * 100 +
+      (p.length == 1 ? 0 : int.parse(p[1].padRight(2, '0')));
+}
+
+Map<String, int> allocateShares(
+  int total,
+  List<String> selected,
+  Map<String, int> fixed,
+) {
+  if (total <= 0 ||
+      !fixed.keys.every(selected.contains) ||
+      fixed.values.any((v) => v < 0)) {
+    throw const FormatException('Invalid split');
+  }
+  final remaining = total - fixed.values.fold(0, (a, b) => a + b);
+  final free = selected.where((id) => !fixed.containsKey(id)).toList();
+  if (remaining < 0) throw const FormatException('Shares exceed total');
+  final result = Map<String, int>.from(fixed);
+  for (int i = 0; i < free.length; i++) {
+    result[free[i]] =
+        remaining ~/ free.length + (i < remaining % free.length ? 1 : 0);
+  }
+  return result;
 }
 
 class GroupSettings extends StatelessWidget {
