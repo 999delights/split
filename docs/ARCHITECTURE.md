@@ -46,8 +46,10 @@ units plus ISO currency, and store timestamps in UTC.
 Do not delete Firebase configuration or tracked project metadata during the audit.
 Removal happens only after export, migration and release verification.
 
+Xcode per-user state is not product source and must remain untracked. CocoaPods
+and the Firebase configuration stay frozen until the first verified Mac build.
+
 ## Admin contract
 
 The company admin receives account status, subscription/revenue summaries, app
 version and service health. Expense contents and group activity remain private.
-
