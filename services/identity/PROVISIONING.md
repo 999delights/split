@@ -13,3 +13,15 @@ Run from the repository root with identity requirements installed and the SMTP v
 Use contact@dddcreate.com as SMTP_FROM; use the product alias only as SMTP_REPLY_TO. Display name is STATZ, Bliss, Sixth or Split Paper. Authentication credentials remain those of the actual mailbox. Development email delivery must be restricted with MAIL_ALLOWLIST. MAIL_ENABLED=false pauses queued deliveries too.
 
 Never put SMTP passwords into command arguments, Git, logs, or application files. Windows must inject the shared secret before starting the process, including after restarts. Provisioning prints only product/preparation status. Actual activation requires backup, migrations, validation and explicit preserved-data ownership mapping.
+
+## Windows loader
+
+The development deploy shell must run the external loader before starting PM2:
+
+```powershell
+. 'D:\app-runtime\tools\import_smtp_env.ps1' -Environment development
+```
+
+Start/update the backend with `--update-env` and keep `pm2 save` after successful health checks. The loader and SMTP secret remain outside Git. Do not log process environments or PM2 environment dumps. This configures SMTP transport only; identity configuration and migrations remain separate prerequisites.
+
+Split does not yet have a backend deployment script in this repository. Its future controlled development deployment must use the same loader before starting the backend. The readiness runner alone does not start the API.
