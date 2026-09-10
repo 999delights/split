@@ -1,0 +1,9 @@
+Flask>=3.0,<4
+SQLAlchemy>=2.0,<3
+PyMySQL==1.1.1
+PyJWT[crypto]>=2.10,<3
+argon2-cffi>=23.1,<26
+cryptography>=43,<47
+python-dotenv==1.0.0
+requests>=2.31,<3
+waitress>=3.0,<4
