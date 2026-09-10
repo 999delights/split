@@ -25,7 +25,7 @@ def exclusive(path, value):
 
 
 def provision(product, config_root, secrets_root, smtp_file, public_url,
-              google_ids, apple_ids, sender, recipient):
+              google_ids, apple_ids, sender, recipient, reply_to=None):
     from infra.db.auth_readiness import read_env
     from .core import Identity
     if product not in ('statz', 'bliss', 'sixth', 'split'):
@@ -36,6 +36,7 @@ def provision(product, config_root, secrets_root, smtp_file, public_url,
     if not google_ids or not apple_ids or any(not x.strip() for x in google_ids + apple_ids):
         raise ValueError('Explicit Google and Apple client IDs are required')
     sender, recipient = Identity.email(sender), Identity.email(recipient)
+    reply_to = Identity.email(reply_to) if reply_to else sender
     config_root, secrets_root = Path(config_root), Path(secrets_root)
     database = config_root / (product + '.database.env')
     db = read_env(database)
@@ -66,7 +67,7 @@ def provision(product, config_root, secrets_root, smtp_file, public_url,
                   MAIL_ENABLED='true', SMTP_HOST=smtp['SMTP_HOST'], SMTP_PORT=str(port),
                   SMTP_SECURITY=security, SMTP_USER=smtp['SMTP_USER'],
                   SMTP_PASSWORD=smtp['SMTP_PASSWORD'], SMTP_FROM=sender,
-                  SMTP_MESSAGE_DOMAIN=sender.split('@')[1], MAIL_ALLOWLIST=recipient)
+                  SMTP_REPLY_TO=reply_to, SMTP_MESSAGE_DOMAIN=sender.split('@')[1], MAIL_ALLOWLIST=recipient)
     content = ''.join(k + '=' + quote(v) + '\n' for k, v in values.items())
     created = []
     try:
@@ -95,10 +96,11 @@ def main():
     parser.add_argument('--apple-id', action='append', required=True)
     parser.add_argument('--sender', required=True)
     parser.add_argument('--recipient', required=True)
+    parser.add_argument('--reply-to')
     args = parser.parse_args()
     try:
         print(json.dumps(provision(args.product, args.config_root, args.secrets_root,
-              args.smtp_file, args.public_url, args.google_id, args.apple_id, args.sender, args.recipient)))
+              args.smtp_file, args.public_url, args.google_id, args.apple_id, args.sender, args.recipient, args.reply_to)))
     except Exception:
         parser.exit(1, 'Identity preparation failed. Existing files preserved; configuration values suppressed.\n')
 

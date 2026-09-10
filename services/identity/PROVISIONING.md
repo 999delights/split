@@ -11,3 +11,7 @@ The SMTP source is an existing external dotenv file with SMTP_HOST, SMTP_USER, S
 The command exclusively creates independent signing/encryption keys and `<product>.identity.env`, with the supplied test recipient as the development mail allowlist. Existing files are refused, never overwritten. Validation does not connect to MySQL or SMTP. Service activation remains a separate deployment after backup, migrations, validation, and verified domain ownership mapping.
 
 Do not put credentials into shell arguments or Git. The command accepts only the path to the existing SMTP source. It prints product/preparation status only.
+
+## Shared mailbox with application reply aliases
+
+Use the real mailbox for SMTP_USER and SMTP_FROM. Pass `--reply-to` with the product alias. Mail uses the product display name, the real sender address and envelope sender, and the alias only in Reply-To. Aliases need no independent SMTP credentials. MAIL_ENABLED=false also pauses delivery of already queued mail.

@@ -30,6 +30,7 @@ def load_config(product, env_file, database_file):
         'public_url':required('AUTH_PUBLIC_URL'),'google_client_ids':required('GOOGLE_CLIENT_IDS').split(','),
         'apple_client_ids':required('APPLE_CLIENT_IDS').split(','),
         'mail_enabled':values.get('MAIL_ENABLED')=='true','smtp_from':required('SMTP_FROM'),
+        'smtp_reply_to':Identity.email(values['SMTP_REPLY_TO']) if values.get('SMTP_REPLY_TO') else None,
         'message_domain':required('SMTP_MESSAGE_DOMAIN'),'smtp_host':required('SMTP_HOST'),
         'smtp_port':values.get('SMTP_PORT','587'),'smtp_security':values.get('SMTP_SECURITY','starttls'),'smtp_user':required('SMTP_USER'),
         'smtp_password':required('SMTP_PASSWORD'),

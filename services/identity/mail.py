@@ -4,6 +4,7 @@ import json
 import smtplib
 import ssl
 from email.message import EmailMessage
+from email.utils import formataddr, parseaddr
 from urllib.parse import quote
 from .core import AuthError
 
@@ -19,7 +20,7 @@ TEMPLATES={
 def message(identity,row):
     payload=json.loads(identity.cipher.decrypt(row['payload_encrypted'].encode()))
     title,body=TEMPLATES[row['template']]
-    brand=identity.product.title() if identity.product!='split' else 'Split Paper'
+    brand={'statz':'STATZ','bliss':'Bliss','sixth':'Sixth','split':'Split Paper'}[identity.product]
     url=identity.config['public_url'].rstrip('/')
     action_url=None
     if row['template'] in ('email-verification','password-reset'):
@@ -30,7 +31,9 @@ def message(identity,row):
     msg=EmailMessage()
     label='' if identity.config['environment']=='production' else '['+identity.config['environment'].upper()+'] '
     msg['Subject']=label+brand+' — '+title
-    msg['From']=identity.config['smtp_from']
+    msg['From']=formataddr((brand, parseaddr(identity.config['smtp_from'])[1]))
+    if identity.config.get('smtp_reply_to'):
+        msg['Reply-To']=identity.config['smtp_reply_to']
     msg['To']=row['recipient']
     msg['Message-ID']='<'+row['id']+'@'+identity.config['message_domain']+'>'
     msg.set_content(brand+'\n\n'+body)
@@ -43,6 +46,8 @@ def message(identity,row):
 
 
 def deliver_one(identity,sender=None):
+    if not identity.config.get('mail_enabled'):
+        return False
     now=identity.now()
     with identity.engine.begin() as c:
         suffix=' FOR UPDATE SKIP LOCKED' if c.dialect.name=='mysql' else ''
@@ -65,7 +70,7 @@ def deliver_one(identity,sender=None):
             with factory(cfg['smtp_host'],int(cfg.get('smtp_port',587)),timeout=20,**kwargs) as smtp:
                 if security=='starttls':smtp.starttls(context=ssl.create_default_context())
                 smtp.login(cfg['smtp_user'],cfg['smtp_password'])
-                smtp.send_message(msg)
+                smtp.send_message(msg, from_addr=parseaddr(cfg['smtp_from'])[1])
         with identity.engine.begin() as c:
             identity.execute(c,"UPDATE auth_email_outbox SET status='sent',sent_at=:n,lease_until=NULL,payload_encrypted='',error_code=NULL WHERE id=:i",n=identity.now(),i=row['id'])
     except Exception as error:

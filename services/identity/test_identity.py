@@ -36,6 +36,20 @@ class IdentityTest(unittest.TestCase):
  def verified(self):
   self.register();self.identity.consume(self.action(),'verify')
   return self.identity.login('user@example.com','a strong password!','test','127.0.0.1')
+ def test_product_sender_and_reply_to(self):
+  from email.utils import parseaddr
+  self.identity.config.update(smtp_from='contact@example.com',smtp_reply_to='support@example.com')
+  self.register();messages=[]
+  deliver_one(self.identity,messages.append)
+  self.assertEqual(parseaddr(messages[0]['From'])[1],'contact@example.com')
+  self.assertEqual(parseaddr(messages[0]['From'])[0],{'statz':'STATZ','bliss':'Bliss','sixth':'Sixth','split':'Split Paper'}[self.identity.product])
+  self.assertEqual(messages[0]['Reply-To'],'support@example.com')
+  self.assertEqual(messages[0]['To'],'user@example.com')
+ def test_disabled_mail_does_not_deliver_queued_messages(self):
+  self.register();self.identity.config['mail_enabled']=False;messages=[]
+  self.assertFalse(deliver_one(self.identity,messages.append))
+  self.assertEqual(messages,[])
+  self.assertEqual(self.row('SELECT status FROM auth_email_outbox')['status'],'pending')
  def test_registration_requires_verification(self):
   self.register()
   with self.assertRaises(AuthError) as e:self.identity.login('user@example.com','a strong password!','test','127.0.0.1')
