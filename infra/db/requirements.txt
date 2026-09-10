@@ -1,0 +1,4 @@
+PyMySQL==1.1.1
+cryptography>=43,<47
+python-dotenv==1.0.0
+sqlparse==0.5.3

@@ -1,0 +1,34 @@
+name: MySQL migration checks
+on:
+  push:
+    branches: [dev]
+    paths: ['infra/db/**', '.github/workflows/database-checks.yml']
+  pull_request:
+    paths: ['infra/db/**', '.github/workflows/database-checks.yml']
+permissions:
+  contents: read
+jobs:
+  fresh-mysql:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: isolated-ci-password
+          MYSQL_DATABASE: app_migration_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pisolated-ci-password"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r infra/db/requirements.txt
+      - run: python infra/db/test_db.py
+      - run: python infra/db/test_mysql.py
+        env:
+          MYSQL_TEST_DATABASE: app_migration_test
+          MYSQL_TEST_USER: root
+          MYSQL_TEST_PASSWORD: isolated-ci-password
