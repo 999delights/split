@@ -35,3 +35,9 @@ jobs:
           MYSQL_TEST_DATABASE: app_migration_test
           MYSQL_TEST_USER: root
           MYSQL_TEST_PASSWORD: isolated-ci-password
+      - run: python -m services.identity.test_mysql
+        env:
+          IDENTITY_TEST_PRODUCT: split
+          MYSQL_TEST_DATABASE: app_migration_test
+          MYSQL_TEST_USER: root
+          MYSQL_TEST_PASSWORD: isolated-ci-password
