@@ -24,4 +24,4 @@ The development deploy shell must run the external loader before starting PM2:
 
 Start/update the backend with `--update-env` and keep `pm2 save` after successful health checks. The loader and SMTP secret remain outside Git. Do not log process environments or PM2 environment dumps. This configures SMTP transport only; identity configuration and migrations remain separate prerequisites.
 
-Split does not yet have a backend deployment script in this repository. Its future controlled development deployment must use the same loader before starting the backend. The readiness runner alone does not start the API.
+Split now has a manual development deployment workflow. It runs only from dev after MySQL CI, requires an explicitly selected loopback port and checks the tested commit. Pending migrations require selecting apply_migrations; backup runs first. No legacy data import runs automatically. Configure the public reverse proxy separately after the loopback health check. The readiness runner alone does not start the API.

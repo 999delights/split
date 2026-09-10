@@ -1,0 +1,35 @@
+name: Deploy development backend
+on:
+  workflow_dispatch:
+    inputs:
+      port:
+        description: Confirmed free Windows loopback port for Split API
+        required: true
+        type: number
+      apply_migrations:
+        description: Apply pending development migrations after backup
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: split-development-windows
+  cancel-in-progress: false
+jobs:
+  database-checks:
+    if: github.ref == 'refs/heads/dev'
+    uses: ./.github/workflows/database-checks.yml
+  deploy:
+    needs: database-checks
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Controlled development deployment
+        shell: pwsh
+        env:
+          DEPLOY_COMMIT: ${{ github.sha }}
+          DEPLOY_PORT: ${{ inputs.port }}
+          APPLY_MIGRATIONS: ${{ inputs.apply_migrations }}
+        run: |
+          & .\infra\windows\deploy-development.ps1 -Port ([int]$env:DEPLOY_PORT) -ExpectedCommit $env:DEPLOY_COMMIT -ApplyMigrations:($env:APPLY_MIGRATIONS -eq 'true')
