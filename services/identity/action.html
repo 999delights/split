@@ -1,0 +1,15 @@
+<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Account confirmation</title></head><body><main><h1>Account confirmation</h1><p id="message">Press Continue to confirm your email.</p><form id="action"><label id="password-label" hidden>New password <input id="password" type="password" minlength="12" maxlength="128" autocomplete="new-password"></label><button>Continue</button></form></main><script nonce="{{nonce}}">
+const params=new URLSearchParams(location.hash.slice(1));
+const token=params.get('token'),purpose=params.get('purpose');
+history.replaceState(null,'',location.pathname);
+if(purpose==='reset'){document.getElementById('password-label').hidden=false;document.getElementById('password').required=true;document.getElementById('message').textContent='Choose your new password.';}
+document.getElementById('action').addEventListener('submit',async event=>{
+ event.preventDefault();const button=event.target.querySelector('button');button.disabled=true;
+ try{if(!token||!['verify','reset'].includes(purpose))throw Error('Invalid link. Request a new email.');
+ const endpoint=location.pathname.replace(/action$/,purpose==='verify'?'verify-email':'reset-password');
+ const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token,password:document.getElementById('password').value})});
+ if(!r.ok)throw Error('The link expired or was already used. Request a new email.');
+ document.getElementById('message').textContent='Done. Return to the app and sign in.';event.target.hidden=true;
+ }catch(error){document.getElementById('message').textContent=error.message;button.disabled=false;}
+});
+</script></body></html>

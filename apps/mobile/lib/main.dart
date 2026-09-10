@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'identity/app_auth.dart';
 import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
@@ -7,6 +8,8 @@ const apiBase = String.fromEnvironment(
   'SPLIT_API_BASE_URL',
   defaultValue: 'http://127.0.0.1:3400',
 );
+const useApplicationIdentity = bool.fromEnvironment('APP_AUTH_V2');
+final identity = AppAuth(product: 'split', baseUrl: apiBase);
 const devToken = String.fromEnvironment('SPLIT_DEV_TOKEN');
 const green = Color(0xff2bc653);
 const legacyColors = <String, Color>{
@@ -89,7 +92,9 @@ class Api {
         body == null ? 'GET' : 'POST',
         Uri.parse('$apiBase/api/v1$path'),
       );
-      request.headers.set('Authorization', 'Bearer $devToken');
+      final token = useApplicationIdentity ? await identity.accessToken() : devToken;
+      if (token == null || token.isEmpty) throw Exception('Sign in to continue.');
+      request.headers.set('Authorization', 'Bearer $token');
       if (body != null) {
         request.headers.contentType = ContentType.json;
         request.write(jsonEncode(body));
@@ -170,9 +175,28 @@ class _WelcomeState extends State<Welcome> {
   @override
   void initState() {
     super.initState();
-    if (const bool.fromEnvironment('SPLIT_OPEN_PREVIEW')) {
+    if (useApplicationIdentity) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {if (await identity.accessToken() != null && mounted) await enter();}
+        catch (e) {if (mounted) message(context, e);}
+      });
+    } else if (const bool.fromEnvironment('SPLIT_OPEN_PREVIEW')) {
       WidgetsBinding.instance.addPostFrameCallback((_) => enter());
     }
+  }
+
+  Future<void> providerLogin(String provider) async {
+    if (provider == 'Email') {
+      final signedIn = await Navigator.push<bool>(context, MaterialPageRoute(builder: (c) => AppAuthScreen(auth: identity, title: 'split paper', onSignedIn: () => Navigator.pop(c, true))));
+      if (signedIn == true && mounted) await enter();
+      return;
+    }
+    setState(() => busy = true);
+    try {
+      if (provider == 'Google') {await identity.google();} else {await identity.apple();}
+      if (identity.session != null && mounted) await enter();
+    } catch (e) {if (mounted) message(context, e);}
+    finally {if (mounted) setState(() => busy = false);}
   }
 
   Future<void> enter() async {
@@ -239,7 +263,7 @@ class _WelcomeState extends State<Welcome> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: () => message(
+                    onPressed: busy ? null : useApplicationIdentity ? () => providerLogin(provider) : () => message(
                       c,
                       '$provider authentication will be connected after the v0 review. Use the local preview below.',
                     ),
@@ -284,7 +308,7 @@ class _WelcomeState extends State<Welcome> {
                   ),
                 ],
               ),
-              if (devToken.isNotEmpty)
+              if (!useApplicationIdentity && devToken.isNotEmpty)
                 TextButton(
                   onPressed: busy ? null : enter,
                   child: Text(busy ? 'Loading…' : 'Open local v0 preview'),
@@ -1502,7 +1526,12 @@ class Settings extends StatelessWidget {
         ),
         ListTile(
           title: const Text('Log out', style: TextStyle(color: Colors.red)),
-          onTap: () => Navigator.popUntil(c, (r) => r.isFirst),
+          onTap: () async {
+            try {
+              if (useApplicationIdentity) await identity.logout();
+              if (c.mounted) Navigator.popUntil(c, (r) => r.isFirst);
+            } catch (e) {if (c.mounted) message(c, e);}
+          },
         ),
       ],
     ),
