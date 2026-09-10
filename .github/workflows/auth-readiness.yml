@@ -1,0 +1,29 @@
+name: Development auth readiness
+on:
+  push:
+    branches: ['codex/auth-*']
+    paths: ['infra/db/auth_readiness.py', 'infra/db/test_auth_readiness.py', '.github/workflows/auth-readiness.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: [self-hosted, Windows, X64]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read-only configuration and database status
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $python = 'C:\Users\numeSmecherDeServer\AppData\Local\Programs\Python\Python312\python.exe'
+          if (-not (Test-Path $python)) { $python = 'python' }
+          & $python -m venv "$env:RUNNER_TEMP\auth-preflight-split"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create isolated preflight environment' }
+          $python = "$env:RUNNER_TEMP\auth-preflight-split\Scripts\python.exe"
+          & $python -m pip install -r infra/db/requirements.txt --quiet
+          if ($LASTEXITCODE -ne 0) { throw 'Preflight dependency installation failed' }
+          & $python infra/db/test_auth_readiness.py
+          if ($LASTEXITCODE -ne 0) { throw 'Preflight tests failed' }
+          & $python infra/db/auth_readiness.py --product split
+          if ($LASTEXITCODE -ne 0) { throw 'Preflight failed' }
