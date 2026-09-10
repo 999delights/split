@@ -3,6 +3,7 @@ import argparse
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -33,6 +34,8 @@ def inspect(product, root):
                 identity = candidate
                 break
     config = read_env(identity)
+    for key in ('SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURITY', 'SMTP_USER', 'SMTP_PASSWORD'):
+        config[key] = os.environ.get(key)
     db = read_env(database)
     report = {'product': product, 'identity_file_present': identity.is_file(),
               'database_file_present': database.is_file(),

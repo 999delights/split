@@ -24,7 +24,7 @@ def exclusive(path, value):
         stream.write(value)
 
 
-def provision(product, config_root, secrets_root, smtp_file, public_url,
+def provision(product, config_root, secrets_root, public_url,
               google_ids, apple_ids, sender, recipient, reply_to=None):
     from infra.db.auth_readiness import read_env
     from .core import Identity
@@ -42,17 +42,6 @@ def provision(product, config_root, secrets_root, smtp_file, public_url,
     db = read_env(database)
     if db.get('APP_DB_NAME') != 'dev_' + product + '_db':
         raise ValueError('Expected development database configuration')
-    smtp = read_env(Path(smtp_file))
-    if any(not smtp.get(k) for k in ('SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD')):
-        raise ValueError('SMTP source configuration is incomplete')
-    security = smtp.get('SMTP_SECURITY') or ('ssl' if smtp.get('SMTP_SECURE') == 'true' else 'starttls')
-    if security not in ('ssl', 'starttls'):
-        raise ValueError('SMTP must use verified TLS')
-    if smtp.get('SMTP_ALLOW_INVALID_CERTS', '').lower() == 'true':
-        raise ValueError('SMTP source requires invalid certificates; refusing to copy')
-    port = int(smtp.get('SMTP_PORT') or (465 if security == 'ssl' else 587))
-    if not 1 <= port <= 65535:
-        raise ValueError('Invalid SMTP port')
     paths = [config_root / (product + '.identity.env'),
              secrets_root / (product + '-auth-development.key'),
              secrets_root / (product + '-email-development.key')]
@@ -64,9 +53,7 @@ def provision(product, config_root, secrets_root, smtp_file, public_url,
                   AUTH_SECRET_FILE=str(paths[1]), AUTH_EMAIL_KEY_FILE=str(paths[2]),
                   GOOGLE_CLIENT_IDS=','.join(x.strip() for x in google_ids),
                   APPLE_CLIENT_IDS=','.join(x.strip() for x in apple_ids),
-                  MAIL_ENABLED='true', SMTP_HOST=smtp['SMTP_HOST'], SMTP_PORT=str(port),
-                  SMTP_SECURITY=security, SMTP_USER=smtp['SMTP_USER'],
-                  SMTP_PASSWORD=smtp['SMTP_PASSWORD'], SMTP_FROM=sender,
+                  MAIL_ENABLED='true', SMTP_FROM=sender,
                   SMTP_REPLY_TO=reply_to, SMTP_MESSAGE_DOMAIN=sender.split('@')[1], MAIL_ALLOWLIST=recipient)
     content = ''.join(k + '=' + quote(v) + '\n' for k, v in values.items())
     created = []
@@ -90,7 +77,6 @@ def main():
     parser.add_argument('--product', required=True, choices=['statz', 'bliss', 'sixth', 'split'])
     parser.add_argument('--config-root', required=True)
     parser.add_argument('--secrets-root', required=True)
-    parser.add_argument('--smtp-file', required=True)
     parser.add_argument('--public-url', required=True)
     parser.add_argument('--google-id', action='append', required=True)
     parser.add_argument('--apple-id', action='append', required=True)
@@ -100,7 +86,7 @@ def main():
     args = parser.parse_args()
     try:
         print(json.dumps(provision(args.product, args.config_root, args.secrets_root,
-              args.smtp_file, args.public_url, args.google_id, args.apple_id, args.sender, args.recipient, args.reply_to)))
+              args.public_url, args.google_id, args.apple_id, args.sender, args.recipient, args.reply_to)))
     except Exception:
         parser.exit(1, 'Identity preparation failed. Existing files preserved; configuration values suppressed.\n')
 

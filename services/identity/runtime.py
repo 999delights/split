@@ -24,6 +24,14 @@ def load_config(product, env_file, database_file):
         value=values.get(key)
         if not value:raise ValueError('Missing configuration: '+key)
         return value
+    def smtp_required(key):
+        value = os.environ.get(key)
+        if not value: raise ValueError('Missing SMTP environment variable: ' + key)
+        return value
+    if os.environ.get('SMTP_SECURITY', 'starttls') not in ('ssl', 'starttls'):
+        raise ValueError('SMTP must use verified TLS')
+    if not 1 <= int(os.environ.get('SMTP_PORT', '587')) <= 65535:
+        raise ValueError('Invalid SMTP port')
     secret=Path(required('AUTH_SECRET_FILE')).read_text().strip()
     key=Path(required('AUTH_EMAIL_KEY_FILE')).read_text().strip()
     config={'product':product,'environment':environment,'secret':secret,'email_key':key,
@@ -31,9 +39,9 @@ def load_config(product, env_file, database_file):
         'apple_client_ids':required('APPLE_CLIENT_IDS').split(','),
         'mail_enabled':values.get('MAIL_ENABLED')=='true','smtp_from':required('SMTP_FROM'),
         'smtp_reply_to':Identity.email(values['SMTP_REPLY_TO']) if values.get('SMTP_REPLY_TO') else None,
-        'message_domain':required('SMTP_MESSAGE_DOMAIN'),'smtp_host':required('SMTP_HOST'),
-        'smtp_port':values.get('SMTP_PORT','587'),'smtp_security':values.get('SMTP_SECURITY','starttls'),'smtp_user':required('SMTP_USER'),
-        'smtp_password':required('SMTP_PASSWORD'),
+        'message_domain':required('SMTP_MESSAGE_DOMAIN'),'smtp_host':smtp_required('SMTP_HOST'),
+        'smtp_port':os.environ.get('SMTP_PORT','587'),'smtp_security':os.environ.get('SMTP_SECURITY','starttls'),'smtp_user':smtp_required('SMTP_USER'),
+        'smtp_password':smtp_required('SMTP_PASSWORD'),
         'mail_allowlist':[x.strip().lower() for x in values.get('MAIL_ALLOWLIST','').split(',') if x.strip()]}
     if environment!='production' and not config['mail_allowlist']:raise ValueError('MAIL_ALLOWLIST required outside production')
     engine=create_engine(URL.create('mysql+pymysql',username=db['APP_DB_USER'],password=db['APP_DB_PASSWORD'],

@@ -1,17 +1,15 @@
 # Development identity provisioning
 
-`python -m services.identity.provision` prepares external configuration only. It does not migrate a database, start a service, send email, or modify the SMTP source file.
+Windows owns SMTP secrets outside Git:
+- Development: `D:\app-runtime\secrets\development\dddcreate.smtp.env`
+- Staging: `D:\app-runtime\secrets\staging\dddcreate.smtp.env`
 
-Run from the repository root, with `services/identity/requirements.txt` installed. Supply `--product`, `--config-root`, `--secrets-root`, `--smtp-file`, `--public-url`, one or more `--google-id`, one or more `--apple-id`, `--sender`, and `--recipient`.
+Deploy infrastructure injects SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD into each backend process. SMTP_SECURITY is `ssl` for implicit TLS (typically 465), or `starttls` (typically 587); default is starttls. The runtime reads these values from the process environment only. It does not read the site's MAIL_* source or copy SMTP credentials into per-product files. Staging is documented only; no staging migration or deployment is enabled here.
 
-The config directory must already contain the product's `.database.env` for its expected `dev_<product>_db`. Both destination directories must exist with restrictive ACLs granting access only to the runtime/deployment account and administrators. Windows file creation inherits these ACLs; POSIX files use mode 0600.
+`python -m services.identity.provision` prepares external development identity configuration and independent keys. It does not deploy, migrate, or send mail. Required arguments: --product, --config-root, --secrets-root, --public-url, --google-id (repeatable), --apple-id (repeatable), --sender, --recipient. Optional --reply-to selects the product alias.
 
-The SMTP source is an existing external dotenv file with SMTP_HOST, SMTP_USER, SMTP_PASSWORD, and optional SMTP_PORT plus SMTP_SECURITY (ssl/starttls) or SMTP_SECURE. Invalid-certificate configurations are refused. The source file is never changed. Client IDs must be the actual registered Google/Apple applications; do not use placeholders to activate services.
+Run from the repository root with identity requirements installed and the SMTP variables already injected. Configuration and secrets directories must exist with restrictive Windows ACLs for the runtime/deployment account and administrators. Existing files are refused, never overwritten. Config root must contain the matching `<product>.database.env` for `dev_<product>_db`. Generated keys are independent per application. Runtime parsing is checked without making network connections.
 
-The command exclusively creates independent signing/encryption keys and `<product>.identity.env`, with the supplied test recipient as the development mail allowlist. Existing files are refused, never overwritten. Validation does not connect to MySQL or SMTP. Service activation remains a separate deployment after backup, migrations, validation, and verified domain ownership mapping.
+Use contact@dddcreate.com as SMTP_FROM; use the product alias only as SMTP_REPLY_TO. Display name is STATZ, Bliss, Sixth or Split Paper. Authentication credentials remain those of the actual mailbox. Development email delivery must be restricted with MAIL_ALLOWLIST. MAIL_ENABLED=false pauses queued deliveries too.
 
-Do not put credentials into shell arguments or Git. The command accepts only the path to the existing SMTP source. It prints product/preparation status only.
-
-## Shared mailbox with application reply aliases
-
-Use the real mailbox for SMTP_USER and SMTP_FROM. Pass `--reply-to` with the product alias. Mail uses the product display name, the real sender address and envelope sender, and the alias only in Reply-To. Aliases need no independent SMTP credentials. MAIL_ENABLED=false also pauses delivery of already queued mail.
+Never put SMTP passwords into command arguments, Git, logs, or application files. Windows must inject the shared secret before starting the process, including after restarts. Provisioning prints only product/preparation status. Actual activation requires backup, migrations, validation and explicit preserved-data ownership mapping.
