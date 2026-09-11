@@ -29,3 +29,17 @@ class ProviderTest(unittest.TestCase):
   token=self.token('apple',nonce=digest('expected'))
   self.identity.verify_provider('apple',token,'expected')
   with self.assertRaises(AuthError):self.identity.verify_provider('apple',token,'wrong')
+
+ def test_google_unverified_rejected(self):
+  self.identity.verifier=self.identity.verify_provider
+  for verified in (False,'false',None,1):
+   with self.assertRaises(AuthError):self.identity.social('google',self.token(email_verified=verified),None,'iOS','test')
+ def test_google_repeat_and_logout(self):
+  self.identity.verifier=self.identity.verify_provider
+  first=self.identity.social('google',self.token(),None,'iOS','one')
+  second=self.identity.social('google',self.token(),None,'Android','two')
+  self.assertEqual(first['user']['id'],second['user']['id'])
+  fresh=self.identity.refresh(first['refresh_token'])
+  self.identity.logout(first['user']['id'],fresh['refresh_token'])
+  with self.assertRaises(AuthError):self.identity.authenticate(fresh['access_token'])
+  self.identity.authenticate(second['access_token'])

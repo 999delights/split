@@ -1,5 +1,6 @@
 """Authenticated Split API over MySQL. Reuses the v0 expense calculation rules."""
 import re
+import os
 from flask import Flask,request,jsonify
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -55,7 +56,7 @@ def create_app(identity):
   try:
    with identity.engine.connect() as c:c.execute(text('SELECT COUNT(*) FROM auth_sessions'))
   except SQLAlchemyError:return jsonify(status='unavailable',mode='mysql-identity'),503
-  return {'status':'ok','mode':'mysql-identity'}
+  return {'status':'ok','mode':'mysql-identity','commit':os.environ.get('SPLIT_RELEASE_COMMIT')}
  @app.route('/api/v1/<path:path>',methods=['GET','POST'])
  def api(path):
   header=request.headers.get('Authorization','')

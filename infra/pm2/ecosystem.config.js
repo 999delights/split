@@ -15,9 +15,12 @@ module.exports = { apps: [{
     '--port', String(port)],
   cwd: path.resolve(__dirname, '..', '..'),
   autorestart: true,
+  min_uptime: 10000,
+  max_restarts: 3,
   watch: false,
   env: {
     APP_ENV: 'development',
+    SPLIT_RELEASE_COMMIT: process.env.SPLIT_RELEASE_COMMIT || '',
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_PORT: process.env.SMTP_PORT,
     SMTP_SECURITY: process.env.SMTP_SECURITY,

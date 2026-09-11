@@ -3,6 +3,16 @@ on:
   push:
     branches: [dev]
     paths:
+      - 'services/backend/**'
+      - 'services/identity/**'
+      - 'infra/db/**'
+      - 'infra/windows/**'
+      - 'infra/pm2/**'
+      - '.github/workflows/deploy-development.yml'
+      - '.github/workflows/database-checks.yml'
+  push:
+    branches: [dev]
+    paths:
       - services/backend/**
       - services/identity/**
       - infra/db/**

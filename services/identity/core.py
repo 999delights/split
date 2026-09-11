@@ -275,7 +275,9 @@ class Identity:
         claims=self.verifier(provider,token,nonce)
         subject=claims.get('sub')
         if not isinstance(subject,str) or not 1<=len(subject)<=255: raise AuthError('invalid_provider_token',401)
-        verified=claims.get('email_verified') in (True,'true')
+        verified=claims.get('email_verified') is True or claims.get('email_verified') == 'true'
+        if provider=='google' and (not verified or not claims.get('email')):
+            raise AuthError('google_email_not_verified',401)
         email=self.email(claims['email']) if claims.get('email') and verified else None
         with self.engine.begin() as c:
             if provider=='apple':

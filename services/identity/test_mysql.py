@@ -32,6 +32,21 @@ def main():
   try:identity.authenticate(descendant['access_token'])
   except AuthError:pass
   else:raise AssertionError('Refresh replay did not revoke descendant')
+  if product=='split':
+   from services.backend.mysql_app import create_app
+   client=create_app(identity).test_client()
+   login=identity.login('identity@example.test','valid test password','domain CI','127.0.0.2')
+   headers={'Authorization':'Bearer '+login['access_token']}
+   assert client.get('/api/v1/state').status_code==401
+   response=client.post('/api/v1/groups',json={'name':'MySQL CI trip'},headers=headers)
+   assert response.status_code==200,response.json
+   group=response.json['groups'][0];gid=group['id'];member=group['members'][0]['id']
+   response=client.post('/api/v1/groups/'+gid+'/expenses',headers=headers,json={'name':'CI expense','amount':100,'payer':member,'shares':{member:100}})
+   assert response.status_code==200,response.json
+   assert response.json['groups'][0]['balances'][member]==0
+   identity.logout(login['user']['id'],login['refresh_token'])
+   assert client.get('/api/v1/state',headers=headers).status_code==401
+   print('Split domain passed against MySQL: group, expense, balances and revocation.')
   delivered=[]
   assert deliver_one(identity,delivered.append)
   assert delivered

@@ -3,9 +3,9 @@ on:
   workflow_call:
   push:
     branches: [dev, 'codex/auth-*']
-    paths: ['services/identity/**', 'infra/db/**', 'infra/windows/**', 'infra/pm2/**', '.github/workflows/deploy-development.yml', '.github/workflows/database-checks.yml']
+    paths: ['services/backend/**', 'services/identity/**', 'infra/db/**', 'infra/windows/**', 'infra/pm2/**', '.github/workflows/deploy-development.yml', '.github/workflows/database-checks.yml']
   pull_request:
-    paths: ['services/identity/**', 'infra/db/**', 'infra/windows/**', 'infra/pm2/**', '.github/workflows/deploy-development.yml', '.github/workflows/database-checks.yml']
+    paths: ['services/backend/**', 'services/identity/**', 'infra/db/**', 'infra/windows/**', 'infra/pm2/**', '.github/workflows/deploy-development.yml', '.github/workflows/database-checks.yml']
 permissions:
   contents: read
 jobs:

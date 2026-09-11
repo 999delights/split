@@ -1,5 +1,5 @@
 param(
-    [Parameter(Mandatory=$true)][ValidateRange(1024,65535)][int]$Port,
+    [ValidateRange(1024,65535)][int]$Port = 3400,
     [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{40}$')][string]$ExpectedCommit,
     [string]$DeployRoot = 'D:\network\_share\apps\development\split',
     [switch]$ApplyMigrations
@@ -11,6 +11,7 @@ function Invoke-Checked {
     if ($LASTEXITCODE -ne 0) { throw "Command failed with exit code $LASTEXITCODE" }
 }
 $repoRoot = (Resolve-Path -LiteralPath $DeployRoot).Path
+if ((git -C $repoRoot remote get-url origin).Trim() -notmatch 'github.com[:/]999delights/split(?:\.git)?$') { throw 'Runtime checkout is not 999delights/split; preserve the legacy checkout and prepare the correct clone' }
 if ((git -C $repoRoot branch --show-current).Trim() -ne 'dev') { throw 'Split checkout must be on dev' }
 if (git -C $repoRoot status --porcelain) { throw 'Split checkout has local changes' }
 Invoke-Checked 'git' @('-C', $repoRoot, 'pull', '--ff-only', 'origin', 'dev')
@@ -37,6 +38,13 @@ try {
     # Pending migrations stop deployment unless explicitly applied above.
     Invoke-Checked $python @('infra\db\db.py', 'db:validate', '--env-file', $database)
     Invoke-Checked $python @('-m', 'services.identity.runtime', '--product', 'split', '--env-file', $identity, '--database-file', $database, '--port', "$Port", '--check')
+    # Refuse to take a port belonging to another service.
+    $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
+    if ($listeners.Count) {
+        $splitPid = (pm2.cmd pid split-server | Out-String).Trim()
+        if ($splitPid -notmatch '^\d+$' -or @($listeners | Where-Object { $_.OwningProcess -ne [int]$splitPid }).Count) { throw 'Split DEV port is occupied by another process' }
+    }
+    $env:SPLIT_RELEASE_COMMIT = $ExpectedCommit
     $env:SPLIT_DEV_PORT = "$Port"
     $env:SPLIT_DEV_PYTHON = $python
     Invoke-Checked 'pm2.cmd' @('startOrRestart', 'infra\pm2\ecosystem.config.js', '--only', 'split-server', '--update-env')
@@ -45,7 +53,7 @@ try {
         Start-Sleep -Seconds 2
         try {
             $health = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/health" -TimeoutSec 3
-            if ($health.status -eq 'ok' -and $health.mode -eq 'mysql-identity') { $healthy = $true; break }
+            if ($health.status -eq 'ok' -and $health.mode -eq 'mysql-identity' -and $health.commit -eq $ExpectedCommit) { $healthy = $true; break }
         } catch { }
     }
     if (-not $healthy) { throw 'Split health check failed; deployment not confirmed' }

@@ -32,6 +32,9 @@ def load_config(product, env_file, database_file):
         raise ValueError('SMTP must use verified TLS')
     if not 1 <= int(os.environ.get('SMTP_PORT', '587')) <= 65535:
         raise ValueError('Invalid SMTP port')
+    google_ids=[v.strip() for v in required('GOOGLE_CLIENT_IDS').split(',') if v.strip()]
+    if product=='split' and environment=='development' and (len(google_ids)!=1 or not google_ids[0].endswith('.apps.googleusercontent.com')):
+        raise ValueError('Configure exactly one Split DEV Google Web audience')
     secret=Path(required('AUTH_SECRET_FILE')).read_text().strip()
     key=Path(required('AUTH_EMAIL_KEY_FILE')).read_text().strip()
     config={'product':product,'environment':environment,'secret':secret,'email_key':key,
