@@ -8,10 +8,9 @@ at `/api/v1`. No Firebase Auth or legacy preview token is used in this runtime.
 ## Windows contract
 
 - Branch: dev, repository 999delights/split.
-- Requested runtime checkout: `D:\network\_share\apps\development\split`.
-  This is a literal path, with `_share` beneath `network`. If Windows uses the
-  previously mentioned single folder `D:\network_share`, pass the actual path
-  via `-DeployRoot`; do not relocate or delete the existing iOS checkout.
+- Requested runtime checkout: `D:\network_share\apps\development\split`.
+  Windows confirmed the spelling with `network\_share` does not exist. Preserve
+  the existing checkout; no automated relocation or deletion is performed.
 - PM2: split-server, loopback port **3400** (deployment checks port ownership).
 - Virtualenv: `D:\app-runtime\venvs\development\split`.
 - Config: `D:\app-runtime\config\development\split.database.env` and

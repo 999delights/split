@@ -1,7 +1,7 @@
 param(
     [ValidateRange(1024,65535)][int]$Port = 3400,
     [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{40}$')][string]$ExpectedCommit,
-    [string]$DeployRoot = 'D:\network\_share\apps\development\split',
+    [string]$DeployRoot = 'D:\network_share\apps\development\split',
     [switch]$ApplyMigrations
 )
 $ErrorActionPreference = 'Stop'
