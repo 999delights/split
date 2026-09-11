@@ -78,6 +78,10 @@ def mutate(c,path,d):
         c.execute('INSERT INTO members VALUES(?,?,?)',(uid(),g,string(d,'name')))
     elif parts[2]=='settings':
         c.execute('UPDATE groups SET name=? WHERE id=?',(string(d,'name'),g))
+        if 'icon' in d:
+            icon=d['icon']
+            if type(icon) is not int or not 1<=icon<=20: raise ValueError('Invalid group icon')
+            c.execute('UPDATE groups SET icon=? WHERE id=?',(icon,g))
     elif parts[2]=='expenses':
         name=string(d,'name'); amount=integer(d.get('amount')); payer=d.get('payer'); shares=d.get('shares')
         if payer not in members or not isinstance(shares,dict) or not shares or not set(shares)<=members: raise ValueError('Select group participants')

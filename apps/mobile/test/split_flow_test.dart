@@ -71,7 +71,7 @@ void main() {
         cards.every(
           (x) =>
               (x.decoration as BoxDecoration).color ==
-              Colors.blue.withValues(alpha: .15),
+              splitBlue.withValues(alpha: .15),
         ),
         true,
       );

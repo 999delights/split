@@ -73,3 +73,27 @@ class DomainTest(unittest.TestCase):
   g=self.client.get('/api/v1/state',headers=self.headers).json['groups'][0]
   self.assertEqual(g['my_member_id'],mid)
   self.assertEqual(g['members'][0]['id'],mid)
+
+ def test_group_icon_edit_validates_and_preserves_expenses(self):
+  g=self.group();gid=g['id'];mid=g['my_member_id']
+  self.post('groups/'+gid+'/expenses',{'name':'Lunch','amount':100,'payer':mid,'shares':{mid:100}})
+  r=self.post('groups/'+gid+'/settings',{'name':'Renamed','icon':20})
+  self.assertEqual(r.status_code,200)
+  self.assertEqual(r.json['groups'][0]['icon'],20)
+  self.assertEqual(len(r.json['groups'][0]['expenses']),1)
+  r=self.post('groups/'+gid+'/settings',{'name':'Must roll back','icon':21})
+  self.assertEqual(r.status_code,400)
+  self.assertEqual(self.client.get('/api/v1/state',headers=self.headers).json['groups'][0]['name'],'Renamed')
+
+ def test_group_delete_is_owner_only_and_transactional(self):
+  g=self.group();gid=g['id'];mid=g['my_member_id']
+  self.post('groups/'+gid+'/expenses',{'name':'Lunch','amount':100,'payer':mid,'shares':{mid:100}})
+  self.assertEqual(self.post('groups/'+gid+'/delete',{},self.other_headers).status_code,404)
+  other=self.identity.authenticate(self.other_headers['Authorization'][7:])
+  with self.identity.engine.begin() as c:
+   c.execute(text("INSERT INTO split_group_users(group_id,user_id,role) VALUES(:g,:u,'editor')"),{'g':gid,'u':other['id']})
+  self.assertEqual(self.post('groups/'+gid+'/delete',{},self.other_headers).status_code,404)
+  self.assertEqual(self.post('groups/'+gid+'/delete',{}).status_code,200)
+  with self.identity.engine.connect() as c:
+   for table in ['split_groups','split_group_users','split_members','split_expenses','split_shares']:
+    self.assertEqual(c.execute(text('SELECT COUNT(*) FROM '+table)).scalar(),0)

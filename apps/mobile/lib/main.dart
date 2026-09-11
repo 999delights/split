@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+part 'legacy_group.dart';
+
 const apiBase = String.fromEnvironment(
   'SPLIT_API_BASE_URL',
   defaultValue: 'http://127.0.0.1:3400',
@@ -12,6 +14,10 @@ const useApplicationIdentity = bool.fromEnvironment('APP_AUTH_V2');
 final identity = AppAuth(product: 'split', baseUrl: apiBase);
 const devToken = String.fromEnvironment('SPLIT_DEV_TOKEN');
 const green = Color(0xff2bc653);
+const debtRed = Color(0xffc34742);
+const creditGreen = Color(0xff649767);
+const splitPurple = Color(0xffaf52de);
+const splitBlue = Color(0xff007aff);
 const legacyColors = <String, Color>{
   'Cgroup11': Color(0xff8b8b8a),
   'Cgroup10': Color(0xff46c691),
@@ -54,7 +60,18 @@ class SplitApp extends StatelessWidget {
         ? Colors.white
         : Colors.black,
     primaryColor: green,
-    colorScheme: ColorScheme.fromSeed(seedColor: green, brightness: b),
+    textTheme:
+        (b == Brightness.light
+                ? Typography.blackCupertino
+                : Typography.whiteCupertino)
+            .apply(
+              bodyColor: b == Brightness.light ? Colors.black : Colors.white,
+              displayColor: b == Brightness.light ? Colors.black : Colors.white,
+            ),
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: green,
+      brightness: b,
+    ).copyWith(onSurface: b == Brightness.light ? Colors.black : Colors.white),
     appBarTheme: AppBarTheme(
       backgroundColor: b == Brightness.light ? Colors.white : Colors.black,
       foregroundColor: b == Brightness.light ? Colors.black : Colors.white,
@@ -92,8 +109,12 @@ class Api {
         body == null ? 'GET' : 'POST',
         Uri.parse('$apiBase/api/v1$path'),
       );
-      final token = useApplicationIdentity ? await identity.accessToken() : devToken;
-      if (token == null || token.isEmpty) throw Exception('Sign in to continue.');
+      final token = useApplicationIdentity
+          ? await identity.accessToken()
+          : devToken;
+      if (token == null || token.isEmpty) {
+        throw Exception('Sign in to continue.');
+      }
       request.headers.set('Authorization', 'Bearer $token');
       if (body != null) {
         request.headers.contentType = ContentType.json;
@@ -126,16 +147,13 @@ Widget avatar(String text, {String? asset, String? color, double size = 70}) =>
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: legacyColors[color] ?? const Color(0xffe9e6f2),
+        color: legacyColors[color] ?? const Color(0xffe8e8ea),
         shape: asset == null ? BoxShape.circle : BoxShape.rectangle,
         borderRadius: asset == null ? null : BorderRadius.circular(10),
       ),
       alignment: Alignment.center,
       child: asset != null
-          ? Padding(
-              padding: const EdgeInsets.all(3),
-              child: Image.asset('assets/$asset.png', fit: BoxFit.contain),
-            )
+          ? Image.asset('assets/$asset.png', fit: BoxFit.contain)
           : Text(
               text.isEmpty ? '?' : text[0].toUpperCase(),
               style: TextStyle(fontSize: size * .4, color: Colors.black),
@@ -148,8 +166,8 @@ Widget tile(BuildContext c, List<Widget> children, {VoidCallback? tap}) =>
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(c).brightness == Brightness.light
-              ? const Color(0xfffafafa)
-              : const Color(0xff151515),
+              ? Colors.white
+              : Colors.black,
           border: Border.all(
             color: Theme.of(c).colorScheme.onSurface,
             width: 1,
@@ -177,8 +195,11 @@ class _WelcomeState extends State<Welcome> {
     super.initState();
     if (useApplicationIdentity) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {if (await identity.accessToken() != null && mounted) await enter();}
-        catch (e) {if (mounted) message(context, e);}
+        try {
+          if (await identity.accessToken() != null && mounted) await enter();
+        } catch (e) {
+          if (mounted) message(context, e);
+        }
       });
     } else if (const bool.fromEnvironment('SPLIT_OPEN_PREVIEW')) {
       WidgetsBinding.instance.addPostFrameCallback((_) => enter());
@@ -187,16 +208,32 @@ class _WelcomeState extends State<Welcome> {
 
   Future<void> providerLogin(String provider) async {
     if (provider == 'Email') {
-      final signedIn = await Navigator.push<bool>(context, MaterialPageRoute(builder: (c) => AppAuthScreen(auth: identity, title: 'split paper', onSignedIn: () => Navigator.pop(c, true))));
+      final signedIn = await Navigator.push<bool>(
+        context,
+        MaterialPageRoute(
+          builder: (c) => AppAuthScreen(
+            auth: identity,
+            title: 'split paper',
+            onSignedIn: () => Navigator.pop(c, true),
+          ),
+        ),
+      );
       if (signedIn == true && mounted) await enter();
       return;
     }
     setState(() => busy = true);
     try {
-      if (provider == 'Google') {await identity.google();} else {await identity.apple();}
+      if (provider == 'Google') {
+        await identity.google();
+      } else {
+        await identity.apple();
+      }
       if (identity.session != null && mounted) await enter();
-    } catch (e) {if (mounted) message(context, e);}
-    finally {if (mounted) setState(() => busy = false);}
+    } catch (e) {
+      if (mounted) message(context, e);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
   }
 
   Future<void> enter() async {
@@ -263,10 +300,14 @@ class _WelcomeState extends State<Welcome> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                     ),
-                    onPressed: busy ? null : useApplicationIdentity ? () => providerLogin(provider) : () => message(
-                      c,
-                      '$provider authentication will be connected after the v0 review. Use the local preview below.',
-                    ),
+                    onPressed: busy
+                        ? null
+                        : useApplicationIdentity
+                        ? () => providerLogin(provider)
+                        : () => message(
+                            c,
+                            '$provider authentication will be connected after the v0 review. Use the local preview below.',
+                          ),
                     child: Row(
                       children: [
                         provider == 'Apple'
@@ -349,7 +390,8 @@ class _HomeState extends State<Home> {
 
   @override
   Widget build(BuildContext c) {
-    final groups = data['groups'] as List;
+    final groups = List<Map<String, dynamic>>.from(data['groups'])
+      ..sort((a, b) => groupDate(b).compareTo(groupDate(a)));
     final totals = <String, int>{};
     for (final g in groups) {
       final me = g['my_member_id'];
@@ -375,7 +417,7 @@ class _HomeState extends State<Home> {
                   Text(
                     e.value == 0
                         ? 'settled'
-                        : '${e.value < 0 ? 'You owe' : 'You are owed'}\n${money(e.value.abs(), e.key)}',
+                        : '${e.value < 0 ? 'You owe' : "You're owed"}\n${money(e.value.abs(), totals.length == 1 ? '' : e.key)}',
                     style: const TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -508,7 +550,12 @@ class _CreateGroupState extends State<CreateGroup> {
   @override
   Widget build(BuildContext c) => Scaffold(
     appBar: AppBar(
-      title: const Text('new group'),
+      automaticallyImplyLeading: false,
+      centerTitle: true,
+      title: const Text(
+        'new group',
+        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(c),
@@ -516,431 +563,110 @@ class _CreateGroupState extends State<CreateGroup> {
         ),
       ],
     ),
-    body: ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        SizedBox(
-          height: 90,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: 20,
-            separatorBuilder: (_, i) => const SizedBox(width: 10),
-            itemBuilder: (c, i) => GestureDetector(
-              onTap: () => setState(() => icon = i + 1),
-              child: Opacity(
-                opacity: icon == i + 1 ? 1 : .4,
-                child: avatar('', asset: 'group${i + 1}'),
+    body: LayoutBuilder(
+      builder: (c, bounds) => SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: (bounds.maxHeight - 40).clamp(0, double.infinity),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 5,
+                childAspectRatio: (MediaQuery.sizeOf(c).width - 88) / 5 / 52,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                children: [
+                  for (int i = 1; i <= 20; i++)
+                    InkWell(
+                      onTap: () => setState(() => icon = i),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          border: icon == i
+                              ? Border.all(
+                                  color: Theme.of(c).colorScheme.onSurface,
+                                  width: 2,
+                                )
+                              : null,
+                        ),
+                        child: Image.asset('assets/group$i.png'),
+                      ),
+                    ),
+                ],
               ),
-            ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const SizedBox(height: 35),
+                  const Text(
+                    'What is the group name?',
+                    style: TextStyle(fontSize: 25, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: name,
+                    autofocus: true,
+                    onChanged: (_) => setState(() {}),
+                    style: const TextStyle(fontSize: 25, color: splitPurple),
+                    decoration: const InputDecoration(
+                      filled: false,
+                      border: UnderlineInputBorder(),
+                    ),
+                  ),
+                  DropdownButton<String>(
+                    value: currency,
+                    items: [
+                      for (final x in ['RON', 'EUR', 'USD', 'GBP'])
+                        DropdownMenuItem(value: x, child: Text(x)),
+                    ],
+                    onChanged: (v) => setState(() => currency = v!),
+                  ),
+                  const SizedBox(height: 25),
+                  ElevatedButton(
+                    onPressed: busy || name.text.trim().isEmpty
+                        ? null
+                        : () async {
+                            setState(() => busy = true);
+                            try {
+                              await Api().call('/groups', {
+                                'name': name.text,
+                                'icon': icon,
+                                'currency': currency,
+                              });
+                              if (c.mounted) Navigator.pop(c);
+                            } catch (e) {
+                              if (c.mounted) message(c, e);
+                            } finally {
+                              if (mounted) setState(() => busy = false);
+                            }
+                          },
+                    child: const Text('Create'),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 35),
-        const Text('What is the group name?', style: TextStyle(fontSize: 25)),
-        const SizedBox(height: 16),
-        TextField(controller: name, style: const TextStyle(fontSize: 25)),
-        DropdownButton<String>(
-          value: currency,
-          items: [
-            for (final x in ['RON', 'EUR', 'USD', 'GBP'])
-              DropdownMenuItem(value: x, child: Text(x)),
-          ],
-          onChanged: (v) => setState(() => currency = v!),
-        ),
-        const SizedBox(height: 25),
-        ElevatedButton(
-          onPressed: busy
-              ? null
-              : () async {
-                  setState(() => busy = true);
-                  try {
-                    await Api().call('/groups', {
-                      'name': name.text,
-                      'icon': icon,
-                      'currency': currency,
-                    });
-                    if (c.mounted) Navigator.pop(c);
-                  } catch (e) {
-                    if (c.mounted) message(c, e);
-                  } finally {
-                    if (mounted) setState(() => busy = false);
-                  }
-                },
-          child: const Text('Create'),
-        ),
-      ],
+      ),
     ),
   );
-}
-
-class GroupPage extends StatefulWidget {
-  final Map<String, dynamic> group;
-  const GroupPage({super.key, required this.group});
-  @override
-  State<GroupPage> createState() => _GroupPageState();
-}
-
-class _GroupPageState extends State<GroupPage> {
-  late Map<String, dynamic> g = widget.group;
-  int tab = 0;
-  Future<void> refresh() async {
-    try {
-      final s = await Api().call('/state');
-      if (mounted) {
-        setState(
-          () => g = (s['groups'] as List).firstWhere((x) => x['id'] == g['id']),
-        );
-      }
-    } catch (e) {
-      if (mounted) message(context, e);
-    }
-  }
-
-  Future<void> spend([Map<String, dynamic>? e]) async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => ExpenseForm(group: g, expense: e),
-      ),
-    );
-    await refresh();
-  }
-
-  @override
-  Widget build(BuildContext c) {
-    final members = g['members'] as List;
-    final expenses = g['expenses'] as List;
-    final balances = g['balances'] as Map;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          g['name'],
-          style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w600),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(CupertinoIcons.gear),
-            onPressed: () async {
-              await Navigator.push(
-                c,
-                MaterialPageRoute(builder: (_) => GroupSettings(group: g)),
-              );
-              await refresh();
-            },
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Spent', style: TextStyle(fontSize: 20)),
-                    Text(
-                      money(
-                        expenses.fold<int>(
-                          0,
-                          (a, e) =>
-                              a + ((e['shares'][g['my_member_id']] ?? 0) as int),
-                        ),
-                        g['currency'],
-                      ),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton(
-                    onPressed: members.length < 2 ? null : () => spend(),
-                    child: const Text('Spend', style: TextStyle(fontSize: 17)),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    for (int i = 0; i < 2; i++)
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => setState(() => tab = i),
-                          child: Text(
-                            i == 0 ? 'Stats' : 'Activity',
-                            style: TextStyle(
-                              color: tab == i
-                                  ? Theme.of(c).colorScheme.onSurface
-                                  : Colors.grey,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: RefreshIndicator(
-              onRefresh: refresh,
-              child: tab == 0
-                  ? GridView.count(
-                      padding: const EdgeInsets.all(16),
-                      crossAxisCount: 2,
-                      crossAxisSpacing: 20,
-                      mainAxisSpacing: 20,
-                      childAspectRatio: 1,
-                      children: [
-                        for (final m in members)
-                          tile(c, [
-                            avatar(m['name'], size: 50),
-                            const SizedBox(height: 8),
-                            Text(
-                              m['name'],
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            Text(
-                              balances[m['id']] == 0
-                                  ? 'Settled Up'
-                                  : balances[m['id']] > 0
-                                  ? 'is owed'
-                                  : 'owes',
-                              style: const TextStyle(fontSize: 15),
-                            ),
-                            if (balances[m['id']] != 0)
-                              Text(
-                                money(
-                                  (balances[m['id']] as int).abs(),
-                                  g['currency'],
-                                ),
-                                style: const TextStyle(fontSize: 20),
-                              ),
-                          ], tap: () => settle(m)),
-                      ],
-                    )
-                  : ListView(
-                      padding: const EdgeInsets.all(16),
-                      children: [
-                        if (expenses.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.all(30),
-                            child: Text(
-                              'No payments yet',
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        for (final e in expenses)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: ListTile(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(15),
-                                side: BorderSide(
-                                  color: Theme.of(c).colorScheme.onSurface,
-                                ),
-                              ),
-                              leading: avatar(e['name'], size: 45),
-                              title: Text(
-                                e['name'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Text(
-                                'by ${members.firstWhere((m) => m['id'] == e['payer'])['name']}',
-                              ),
-                              trailing: Text(money(e['amount'], g['currency'])),
-                              onTap: () async {
-                                await Navigator.push(
-                                  c,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        PaymentDetails(group: g, expense: e),
-                                  ),
-                                );
-                                await refresh();
-                              },
-                            ),
-                          ),
-                        for (final s in g['settlements'])
-                          ListTile(
-                            leading: const Icon(
-                              CupertinoIcons.check_mark_circled,
-                              color: green,
-                            ),
-                            title: const Text('Settled Up'),
-                            trailing: Text(money(s['amount'], g['currency'])),
-                          ),
-                      ],
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> settle(Map m) async {
-    final balances = g['balances'] as Map;
-    final amount = balances[m['id']] as int;
-    if (amount >= 0) {
-      message(
-        context,
-        'Choose a participant who owes money to record a settlement.',
-      );
-      return;
-    }
-    final creditors = (g['members'] as List)
-        .where((x) => balances[x['id']] > 0)
-        .toList();
-    await showModalBottomSheet(
-      context: context,
-      builder: (c) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            const ListTile(
-              title: Text('Confirm paid', style: TextStyle(fontSize: 25)),
-            ),
-            for (final receiver in creditors)
-              ListTile(
-                title: Text('${m['name']} → ${receiver['name']}'),
-                subtitle: Text(
-                  money(
-                    (-amount).clamp(0, balances[receiver['id']]),
-                    g['currency'],
-                  ),
-                ),
-                trailing: const Icon(Icons.check),
-                onTap: () async {
-                  try {
-                    await Api().call('/groups/${g['id']}/settlements', {
-                      'sender': m['id'],
-                      'receiver': receiver['id'],
-                      'amount': (-amount).clamp(0, balances[receiver['id']]),
-                    });
-                    if (c.mounted) Navigator.pop(c);
-                    await refresh();
-                  } catch (e) {
-                    if (c.mounted) message(c, e);
-                  }
-                },
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class PaymentDetails extends StatelessWidget {
-  final Map<String, dynamic> group, expense;
-  const PaymentDetails({super.key, required this.group, required this.expense});
-  @override
-  Widget build(BuildContext c) {
-    final members = group['members'] as List;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          (expense['created'] as String).split('T')[0],
-          style: const TextStyle(fontSize: 15),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text('@${group['name']}'),
-          ),
-          const SizedBox(height: 30),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(
-              onPressed: () async {
-                await Navigator.push(
-                  c,
-                  MaterialPageRoute(
-                    builder: (_) => ExpenseForm(group: group, expense: expense),
-                  ),
-                );
-                if (c.mounted) Navigator.pop(c);
-              },
-              child: const Text('Edit', style: TextStyle(color: Colors.red)),
-            ),
-          ),
-          Row(
-            children: [
-              const Icon(CupertinoIcons.tag),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  expense['name'],
-                  style: const TextStyle(fontSize: 25),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              const Icon(CupertinoIcons.money_dollar),
-              const SizedBox(width: 12),
-              Text(
-                money(expense['amount'], group['currency']),
-                style: const TextStyle(fontSize: 20),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'by ${members.firstWhere((m) => m['id'] == expense['payer'])['name']}',
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'with ${(expense['shares'] as Map).values.where((v) => v > 0).length}',
-          ),
-          const SizedBox(height: 12),
-          for (final m in members)
-            if ((expense['shares'][m['id']] ?? 0) > 0)
-              Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: .12),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: ListTile(
-                  title: Text(m['name']),
-                  trailing: Text(
-                    money(expense['shares'][m['id']], group['currency']),
-                  ),
-                ),
-              ),
-        ],
-      ),
-    );
-  }
 }
 
 class ExpenseForm extends StatefulWidget {
   final Map<String, dynamic> group;
   final Map<String, dynamic>? expense;
-  const ExpenseForm({super.key, required this.group, this.expense});
+  final String? initialPayer;
+  const ExpenseForm({
+    super.key,
+    required this.group,
+    this.expense,
+    this.initialPayer,
+  });
   @override
   State<ExpenseForm> createState() => _ExpenseFormState();
 }
@@ -951,7 +677,9 @@ class _ExpenseFormState extends State<ExpenseForm> {
     text: widget.expense == null ? '' : money(widget.expense!['amount'], ''),
   );
   late String? payer =
-      widget.expense?['payer'] ?? widget.group['my_member_id'];
+      widget.expense?['payer'] ??
+      widget.initialPayer ??
+      widget.group['my_member_id'];
   late final Map<String, TextEditingController> shares = {
     for (final m in widget.group['members'])
       m['id']: TextEditingController(
@@ -967,7 +695,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
             .map((e) => e.key.toString())
             .toSet();
   final Set<String> manual = {};
-  int step = 0;
+  late int step = widget.expense == null ? 0 : 2;
   bool busy = false;
   @override
   void dispose() {
@@ -1027,8 +755,11 @@ class _ExpenseFormState extends State<ExpenseForm> {
   void next() {
     try {
       if (step == 0 && name.text.trim().isEmpty) return;
-      if (step == 1 && total <= 0) return;
-      if (step == 1) {
+      if (step == 1 && total <= 0) {
+        message(context, 'Enter an amount greater than zero.');
+        return;
+      }
+      if (step == 1 && !validSplit) {
         manual.clear();
         redistribute();
       }
@@ -1074,7 +805,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
     ),
   );
   Future<void> save() async {
-    if (!validSplit) return;
+    if (!validSplit || payer == null) return;
     setState(() => busy = true);
     try {
       await Api().call(
@@ -1136,7 +867,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
                               const TextSpan(text: 'How much was\n'),
                               TextSpan(
                                 text: name.text.trim(),
-                                style: const TextStyle(color: Colors.purple),
+                                style: const TextStyle(color: splitPurple),
                               ),
                               const TextSpan(text: '?'),
                             ],
@@ -1155,7 +886,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
                     textAlign: step == 0 ? TextAlign.left : TextAlign.center,
                     style: TextStyle(
                       fontSize: step == 0 ? 25 : 30,
-                      color: Colors.purple,
+                      color: splitPurple,
                       fontWeight: step == 0 ? FontWeight.w500 : FontWeight.w800,
                     ),
                     decoration: InputDecoration(
@@ -1178,6 +909,17 @@ class _ExpenseFormState extends State<ExpenseForm> {
                             )
                           : null,
                     ),
+                    onTap: () {
+                      final controller = step == 0 ? name : amount;
+                      controller.selection = TextSelection(
+                        baseOffset: 0,
+                        extentOffset: controller.text.length,
+                      );
+                    },
+                    textInputAction: step == 0
+                        ? TextInputAction.next
+                        : TextInputAction.done,
+                    onSubmitted: (_) => next(),
                     onChanged: (_) => setState(() {}),
                   ),
                 ),
@@ -1204,7 +946,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
                               const TextSpan(text: 'Splitting '),
                               TextSpan(
                                 text: amount.text,
-                                style: const TextStyle(color: Colors.purple),
+                                style: const TextStyle(color: splitPurple),
                               ),
                               const TextSpan(text: '\nwith'),
                             ],
@@ -1244,7 +986,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
                             duration: const Duration(milliseconds: 180),
                             decoration: BoxDecoration(
                               color: selected.contains(m['id'])
-                                  ? Colors.blue.withValues(alpha: .15)
+                                  ? splitBlue.withValues(alpha: .15)
                                   : Colors.white.withValues(alpha: .15),
                               borderRadius: BorderRadius.circular(15),
                               border: Border.all(
@@ -1258,8 +1000,37 @@ class _ExpenseFormState extends State<ExpenseForm> {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
+                                      Stack(
+                                        clipBehavior: Clip.none,
+                                        children: [
+                                          memberAvatar(
+                                            m,
+                                            widget.group,
+                                            size: 65,
+                                          ),
+                                          if (selected.contains(m['id']))
+                                            Positioned(
+                                              right: -3,
+                                              bottom: -3,
+                                              child: Container(
+                                                width: 25,
+                                                height: 25,
+                                                decoration: const BoxDecoration(
+                                                  color: splitBlue,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
+                                                  CupertinoIcons.check_mark,
+                                                  color: Colors.white,
+                                                  size: 15,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
                                       Text(
-                                        m['name'],
+                                        memberName(widget.group, m['id']),
                                         style: const TextStyle(
                                           fontSize: 18,
                                           fontWeight: FontWeight.w500,
@@ -1270,7 +1041,15 @@ class _ExpenseFormState extends State<ExpenseForm> {
                                           horizontal: 40,
                                         ),
                                         child: TextField(
+                                          key: ValueKey('share-${m['id']}'),
                                           controller: shares[m['id']],
+                                          onTap: () {
+                                            final value = shares[m['id']]!;
+                                            value.selection = TextSelection(
+                                              baseOffset: 0,
+                                              extentOffset: value.text.length,
+                                            );
+                                          },
                                           enabled: selected.contains(m['id']),
                                           textAlign: TextAlign.center,
                                           keyboardType:
@@ -1280,7 +1059,7 @@ class _ExpenseFormState extends State<ExpenseForm> {
                                           style: const TextStyle(
                                             fontSize: 17,
                                             fontWeight: FontWeight.w800,
-                                            color: Colors.purple,
+                                            color: splitPurple,
                                           ),
                                           decoration: const InputDecoration(
                                             filled: false,
@@ -1332,48 +1111,38 @@ class _ExpenseFormState extends State<ExpenseForm> {
             )
           : Column(
               children: [
-                const SizedBox(height: 35),
-                heading(Text(name.text)),
-                Text(
-                  money(total, widget.group['currency']),
-                  style: const TextStyle(fontSize: 25, color: Colors.purple),
-                ),
-                Text('@${widget.group['name']}'),
-                Text('with ${selected.length}'),
-                Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: DropdownButtonFormField<String>(
-                    initialValue: payer,
-                    decoration: const InputDecoration(labelText: 'by'),
-                    items: [
-                      for (final m in widget.group['members'])
-                        DropdownMenuItem<String>(
-                          value: m['id'],
-                          child: Text(m['name']),
-                        ),
-                    ],
-                    onChanged: (v) => setState(() => payer = v!),
-                  ),
+                const SizedBox(height: 45),
+                PaymentSummary(
+                  group: widget.group,
+                  expense: {
+                    'name': name.text.trim(),
+                    'amount': total,
+                    'payer': payer,
+                    'shares': {
+                      for (final id in selected)
+                        id: parseMinor(shares[id]!.text),
+                    },
+                  },
+                  review: true,
+                  onPayerChanged: (id) => setState(() => payer = id),
                 ),
                 Expanded(
-                  child: ListView(
-                    children: [
-                      for (final m in widget.group['members'])
-                        if (selected.contains(m['id']))
-                          ListTile(
-                            title: Text(m['name']),
-                            trailing: Text(
-                              shares[m['id']]!.text,
-                              style: const TextStyle(
-                                color: Colors.purple,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                    ],
+                  child: PaymentShares(
+                    group: widget.group,
+                    expense: {
+                      'payer': payer,
+                      'amount': total,
+                      'shares': {
+                        for (final id in selected)
+                          id: parseMinor(shares[id]!.text),
+                      },
+                    },
                   ),
                 ),
-                action(busy ? 'Saving…' : 'Confirm', busy ? null : save),
+                action(
+                  busy ? 'Saving…' : 'Confirm',
+                  busy || payer == null ? null : save,
+                ),
               ],
             ),
     ),
@@ -1411,129 +1180,616 @@ Map<String, int> allocateShares(
   return result;
 }
 
-class GroupSettings extends StatelessWidget {
+class GroupSettings extends StatefulWidget {
   final Map<String, dynamic> group;
   const GroupSettings({super.key, required this.group});
-  Future<void> edit(
-    BuildContext c,
-    String title,
-    String path,
-    String key,
-  ) async {
-    final controller = TextEditingController();
-    final value = await showDialog<String>(
-      context: c,
-      builder: (d) => AlertDialog(
-        title: Text(title),
-        content: TextField(controller: controller, autofocus: true),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(d),
-            child: const Text('Cancel'),
+  @override
+  State<GroupSettings> createState() => _GroupSettingsState();
+}
+
+class _GroupSettingsState extends State<GroupSettings> {
+  late Map<String, dynamic> group = widget.group;
+  Future<void> reload() async {
+    final state = await Api().call('/state');
+    if (mounted) {
+      setState(
+        () => group = Map<String, dynamic>.from(
+          (state['groups'] as List).firstWhere((g) => g['id'] == group['id']),
+        ),
+      );
+    }
+  }
+
+  Future<void> editIcon() async {
+    final icon = await showModalBottomSheet<int>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: GridView.count(
+            shrinkWrap: true,
+            crossAxisCount: 5,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            children: [
+              for (int i = 1; i <= 20; i++)
+                InkWell(
+                  onTap: () => Navigator.pop(c, i),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: i == group['icon']
+                          ? Border.all(
+                              color: Theme.of(c).colorScheme.onSurface,
+                              width: 2,
+                            )
+                          : null,
+                    ),
+                    child: Image.asset('assets/group$i.png'),
+                  ),
+                ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(d, controller.text),
-            child: const Text('Save'),
-          ),
-        ],
+        ),
       ),
     );
-    if (value != null) {
-      try {
-        await Api().call(path, {key: value});
-        if (c.mounted) message(c, 'Saved');
-      } catch (e) {
-        if (c.mounted) message(c, e);
-      }
+    if (icon == null) return;
+    try {
+      await Api().call('/groups/${group['id']}/settings', {
+        'name': group['name'],
+        'icon': icon,
+      });
+      await reload();
+    } catch (e) {
+      if (mounted) message(context, e);
+    }
+  }
+
+  Future<void> createMember() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => NameEditor(
+          title: 'new user',
+          prompt: 'Throw his nickname',
+          hint: "ex. 'John'",
+          action: 'Create',
+          save: (value) async {
+            await Api().call('/groups/${group['id']}/members', {'name': value});
+          },
+        ),
+      ),
+    );
+    try {
+      await reload();
+    } catch (e) {
+      if (mounted) message(context, e);
+    }
+  }
+
+  Future<void> remove() async {
+    final yes = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (c) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Delete Group',
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Text('This will delete group for all users involved'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () => Navigator.pop(c, true),
+                child: const Text('Delete group'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(c, false),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (yes != true) return;
+    try {
+      await Api().call('/groups/${group['id']}/delete', {});
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) message(context, e);
     }
   }
 
   @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(title: const Text('Group settings')),
-    body: ListView(
-      children: [
-        const SizedBox(height: 20),
-        Center(child: avatar(group['name'], asset: 'group${group['icon']}')),
-        ListTile(
-          title: Text(group['name']),
-          trailing: const Icon(CupertinoIcons.pencil),
-          onTap: () =>
-              edit(c, 'Group name', '/groups/${group['id']}/settings', 'name'),
-        ),
-        ListTile(
-          title: const Text('Create user'),
-          subtitle: const Text('Add a participant without an account'),
-          trailing: const Icon(CupertinoIcons.person_add),
-          onTap: () =>
-              edit(c, 'Name', '/groups/${group['id']}/members', 'name'),
-        ),
-        ListTile(
-          title: const Text('Share With Friends'),
-          onTap: () => message(
-            c,
-            'Invitations will be connected with account authentication after the v0 review.',
+    appBar: AppBar(
+      leading: IconButton(
+        tooltip: 'Back',
+        icon: const Icon(CupertinoIcons.chevron_left),
+        onPressed: () => Navigator.pop(c),
+      ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            shortDate(groupDate(group)),
+            style: const TextStyle(fontSize: 15),
           ),
         ),
+      ],
+    ),
+    body: ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text("${group['expenses'].length} payments"),
+        ),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerRight,
+          child: Text("${group['members'].length} users"),
+        ),
+        const SizedBox(height: 16),
+        Center(
+          child: InkWell(
+            onTap: editIcon,
+            child: avatar(
+              group['name'],
+              asset: 'group${group['icon']}',
+              color: group['color'],
+              size: 55,
+            ),
+          ),
+        ),
+        Center(
+          child: TextButton(
+            onPressed: () async {
+              await Navigator.push(
+                c,
+                MaterialPageRoute(
+                  builder: (_) => NameEditor(
+                    title: 'Group name',
+                    prompt: 'What is the group name?',
+                    initial: group['name'],
+                    save: (value) async {
+                      await Api().call('/groups/${group['id']}/settings', {
+                        'name': value,
+                      });
+                    },
+                  ),
+                ),
+              );
+              try {
+                await reload();
+              } catch (e) {
+                if (c.mounted) message(c, e);
+              }
+            },
+            child: Text(
+              group['name'],
+              style: TextStyle(
+                color: Theme.of(c).colorScheme.onSurface,
+                fontWeight: FontWeight.w300,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        _settingsCard(c, [
+          ListTile(
+            title: const Text('Push notifications'),
+            trailing: const Icon(CupertinoIcons.chevron_right, size: 16),
+            onTap: () => showNotConnected(c, 'Push notifications'),
+          ),
+        ]),
+        const SizedBox(height: 40),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => showNotConnected(c, 'Invitations'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(c).colorScheme.onSurface,
+                  minimumSize: const Size(0, 42),
+                  side: const BorderSide(color: Colors.grey),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Invite',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(width: 5),
+                    Icon(CupertinoIcons.paperplane, size: 17),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: OutlinedButton(
+                onPressed: createMember,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(c).colorScheme.onSurface,
+                  minimumSize: const Size(0, 42),
+                  side: const BorderSide(color: Colors.grey),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Create',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(width: 5),
+                    Icon(CupertinoIcons.plus, size: 17),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 40),
+        if (group['role'] == 'owner')
+          Center(
+            child: TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: CupertinoColors.systemRed.withValues(
+                  alpha: .1,
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 13,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(9),
+                ),
+              ),
+              onPressed: remove,
+              child: const Text(
+                'Delete group',
+                style: TextStyle(color: Colors.red, fontSize: 13),
+              ),
+            ),
+          ),
       ],
     ),
   );
 }
 
-class Settings extends StatelessWidget {
+class NameEditor extends StatefulWidget {
+  final String title, prompt, hint, initial, action;
+  final Future<void> Function(String) save;
+  const NameEditor({
+    super.key,
+    required this.title,
+    required this.prompt,
+    required this.save,
+    this.hint = '',
+    this.initial = '',
+    this.action = 'Save',
+  });
+  @override
+  State<NameEditor> createState() => _NameEditorState();
+}
+
+class _NameEditorState extends State<NameEditor> {
+  late final controller = TextEditingController(text: widget.initial);
+  bool busy = false;
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext c) => Scaffold(
+    appBar: AppBar(
+      automaticallyImplyLeading: false,
+      centerTitle: true,
+      title: Text(
+        widget.title,
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(c),
+          child: const Text('Cancel'),
+        ),
+      ],
+    ),
+    body: SafeArea(
+      child: Column(
+        children: [
+          const Spacer(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                widget.prompt,
+                style: const TextStyle(
+                  fontSize: 25,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(fontSize: 25, color: splitPurple),
+              onChanged: (_) => setState(() {}),
+              onTap: () => controller.selection = TextSelection(
+                baseOffset: 0,
+                extentOffset: controller.text.length,
+              ),
+              decoration: InputDecoration(
+                filled: false,
+                hintText: widget.hint,
+                border: const UnderlineInputBorder(),
+                suffixIcon: IconButton(
+                  icon: const Icon(
+                    CupertinoIcons.clear_circled_solid,
+                    size: 18,
+                    color: Colors.grey,
+                  ),
+                  onPressed: () {
+                    controller.clear();
+                    setState(() {});
+                  },
+                ),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+            child: SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: busy || controller.text.trim().isEmpty
+                    ? null
+                    : () async {
+                        setState(() => busy = true);
+                        try {
+                          await widget.save(controller.text.trim());
+                          if (c.mounted) Navigator.pop(c);
+                        } catch (e) {
+                          if (c.mounted) message(c, e);
+                        } finally {
+                          if (mounted) setState(() => busy = false);
+                        }
+                      },
+                child: Text(busy ? 'Saving…' : widget.action),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+Widget _settingsCard(BuildContext c, List<Widget> rows) => Container(
+  decoration: BoxDecoration(
+    color: Theme.of(c).colorScheme.onSurface.withValues(alpha: .055),
+    borderRadius: BorderRadius.circular(15),
+  ),
+  child: Column(children: rows),
+);
+void showNotConnected(BuildContext c, String feature) => showDialog<void>(
+  context: c,
+  builder: (d) => AlertDialog(
+    title: Text(feature),
+    content: Text(
+      feature == 'Invitations'
+          ? 'Group invitations are not available yet. You can add a participant using Create.'
+          : 'This feature is not available yet.',
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(d), child: const Text('OK')),
+    ],
+  ),
+);
+
+class Settings extends StatefulWidget {
   final Map profile;
   const Settings({super.key, required this.profile});
   @override
+  State<Settings> createState() => _SettingsState();
+}
+
+class _SettingsState extends State<Settings> {
+  late String nickname = widget.profile['nickname'];
+  @override
   Widget build(BuildContext c) => Scaffold(
-    appBar: AppBar(),
+    appBar: AppBar(
+      leading: IconButton(
+        icon: const Icon(CupertinoIcons.chevron_left),
+        onPressed: () => Navigator.pop(c),
+      ),
+    ),
     body: ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       children: [
-        Center(child: avatar(profile['nickname'], size: 100)),
-        ListTile(
-          title: Text(
-            '@${profile['nickname']}',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 25),
+        Row(
+          children: [
+            Expanded(
+              child: TextButton(
+                onPressed: () async {
+                  await Navigator.push(
+                    c,
+                    MaterialPageRoute(
+                      builder: (_) => NameEditor(
+                        title: 'Nickname',
+                        prompt: 'Your nickname',
+                        initial: nickname,
+                        save: (value) async {
+                          await Api().call('/profile', {'nickname': value});
+                          if (mounted) setState(() => nickname = value);
+                        },
+                      ),
+                    ),
+                  );
+                },
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '@$nickname ✎',
+                    style: const TextStyle(fontSize: 25, color: splitBlue),
+                  ),
+                ),
+              ),
+            ),
+            avatar(nickname, size: 55),
+          ],
+        ),
+        for (final section in [
+          'Notifications',
+          'Appearance',
+          'Make it better',
+        ]) ...[
+          Padding(
+            padding: const EdgeInsets.only(top: 20, bottom: 8),
+            child: Text(
+              section,
+              style: const TextStyle(fontWeight: FontWeight.w500),
+            ),
           ),
-          trailing: const Icon(CupertinoIcons.pencil),
-          onTap: () => GroupSettings(
-            group: const {},
-          ).edit(c, 'Nickname', '/profile', 'nickname'),
-        ),
-        const SizedBox(height: 30),
-        ListTile(
-          title: const Text('Notifications'),
-          trailing: const Icon(CupertinoIcons.bell),
-          onTap: () =>
-              message(c, 'Push notifications are not connected in local v0.'),
-        ),
-        ListTile(
-          title: const Text('Appearance'),
-          trailing: const Icon(CupertinoIcons.moon),
-          onTap: () {
-            appearance.value = Theme.of(c).brightness == Brightness.dark
-                ? ThemeMode.light
-                : ThemeMode.dark;
-          },
-        ),
-        ListTile(
-          title: const Text('Make it better'),
-          onTap: () => showAboutDialog(
-            context: c,
-            applicationName: 'split paper',
-            applicationVersion: 'Flutter v0',
+          _settingsCard(
+            c,
+            section == 'Notifications'
+                ? [
+                    ListTile(
+                      title: const Text('Push notifications'),
+                      trailing: const Icon(
+                        CupertinoIcons.chevron_right,
+                        size: 16,
+                      ),
+                      onTap: () => showNotConnected(c, 'Push notifications'),
+                    ),
+                    ListTile(
+                      title: const Text('Email notifications'),
+                      trailing: const Icon(
+                        CupertinoIcons.chevron_right,
+                        size: 16,
+                      ),
+                      onTap: () => showNotConnected(c, 'Email notifications'),
+                    ),
+                  ]
+                : section == 'Appearance'
+                ? [
+                    ListTile(
+                      title: const Text('Theme'),
+                      trailing: const Icon(
+                        CupertinoIcons.chevron_right,
+                        size: 16,
+                      ),
+                      onTap: () => showModalBottomSheet(
+                        context: c,
+                        builder: (d) => SafeArea(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (final mode in ThemeMode.values)
+                                ListTile(
+                                  title: Text(
+                                    mode == ThemeMode.system
+                                        ? 'System'
+                                        : mode == ThemeMode.light
+                                        ? 'Light'
+                                        : 'Dark',
+                                  ),
+                                  trailing: appearance.value == mode
+                                      ? const Icon(CupertinoIcons.check_mark)
+                                      : null,
+                                  onTap: () {
+                                    appearance.value = mode;
+                                    Navigator.pop(d);
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ]
+                : [
+                    ListTile(
+                      title: const Text('Report a problem'),
+                      trailing: const Icon(
+                        CupertinoIcons.chevron_right,
+                        size: 16,
+                      ),
+                      onTap: () => showNotConnected(c, 'Report a problem'),
+                    ),
+                  ],
           ),
-        ),
-        ListTile(
-          title: const Text('Log out', style: TextStyle(color: Colors.red)),
-          onTap: () async {
-            try {
-              if (useApplicationIdentity) await identity.logout();
-              if (c.mounted) Navigator.popUntil(c, (r) => r.isFirst);
-            } catch (e) {if (c.mounted) message(c, e);}
-          },
-        ),
+        ],
+        const SizedBox(height: 20),
+        _settingsCard(c, [
+          ListTile(
+            title: const Text('Log Out'),
+            onTap: () async {
+              final yes = await showDialog<bool>(
+                context: c,
+                builder: (d) => AlertDialog(
+                  title: const Text('Log Out'),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(d, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(d, true),
+                      child: const Text('Log Out'),
+                    ),
+                  ],
+                ),
+              );
+              if (yes != true) return;
+              try {
+                if (useApplicationIdentity) await identity.logout();
+                if (c.mounted) Navigator.popUntil(c, (r) => r.isFirst);
+              } catch (e) {
+                if (c.mounted) message(c, e);
+              }
+            },
+          ),
+        ]),
       ],
     ),
   );

@@ -1,91 +1,70 @@
-# Split Flutter v0
+# Split Flutter DEV — Swift parity audit
 
-## Structure
+The original `split/Views/` sources and the installed Swift app are the reference.
+The Flutter client uses the authenticated Windows MySQL backend in DEV. It does
+not open Firebase or the recovered SQLite export. See `WINDOWS-DEV.md` and
+`WINDOWS-DEV-DEPLOY.md` for identity and deployment configuration.
 
-| Component | Location | Status |
-| --- | --- | --- |
-| Original iOS / Firebase | `split/`, Xcode project | Preserved |
-| Flutter iOS / Android | `apps/mobile` | Native local v0 |
-| Split API | `services/backend` | Python / SQLite development sandbox |
-| Business-rule tests | `tests` | Isolated temporary SQLite |
+## Screen and behavior coverage
 
-Original SwiftUI sources, illustrations and colors are the visual reference.
-The Flutter implementation reuses the original illustration assets. It preserves
-welcome branding, two-column group cards, group stats/activity, Spend, participant
-cards, settings and green confirmation actions. The original running iOS home
-screen was inspected on the existing simulator. This is **not yet a claim of
-pixel-perfect parity across every screen**.
+| Original source | Flutter behavior |
+| --- | --- |
+| `home/HomeView.swift`, `lists/listGroupView.swift` | Original illustration assets, two-column group cards, counts, group date order and personal total. Mixed currencies remain separate. |
+| `groups/GroupView.swift`, `StatsView.swift` | Personal `You owe` / `You're owed` and `Spent`, original red/green palette, Spend button, stats/activity underline and swipe. The signed-in participant is excluded from their own Stats cards. |
+| `groups/CreatedUserView.swift`, `CreatedUserStatsView.swift` | Tap a participant for their own stats and spending on their behalf. Relative debts identify who owes whom. Settlement requires explicit confirmation. |
+| `groups/ActivityView2.swift` | Own or involved payments only, newest first; payer avatar, title left/total right, green `You get back`, red `Spent` / `You owe`, blue border for one's own payments. Tap opens a payment sheet. Repayments remain visible. |
+| `spend/getPaymentInfo.swift`, `PaymentList.swift` | Name → amount → two-column split selection → review; 65px avatars, blue checkmarks and selection highlights, purple editable amounts, all-participants toggle and manual remainder allocation. |
+| `spend/PaymentView.swift` | Date/time, group, Edit, name/amount, `by me`, participant count and pill rows. Editing starts at the saved split and retains unequal shares until the user changes them. Tap an amount selects its text. |
+| `groups/create.swift`, `GroupSettings.swift` | Twenty original group icons, group name, local participant creation, group name/icon changes, original date/counts and owner-only delete confirmation. |
+| `settings/SettingsView.swift`, `changeNickname.swift` | Nickname editor, original section hierarchy, light/dark/system themes and logout confirmation. |
 
-Implemented end-to-end against the API: create group, choose icon/currency, add
-offline participants, create/edit expenses, equal or custom split, balances,
-settlements, activity, rename group/profile, light/dark appearance and refresh.
-Original email/Apple/Google authentication is not connected to the new API.
-The welcome screen clearly offers a local preview rather than pretending to
-authenticate. Invitations, profile-photo upload, push and destructive operations
-remain pending. Original Firebase is not modified. A verified local cache copy is now imported; see recovery notes below.
+Amounts remain integer minor units. The original debt-chain cancellation is
+reproduced, but small debts are never silently hidden and the split must total
+exactly the expense. The old Swift tolerances are deliberately not copied.
+Member identity uses `my_member_id`, not participant position or name.
 
-## Run
+## Outstanding parity, explicitly not claimed complete
 
-Provide a private, untracked JSON file containing `SPLIT_API_BASE_URL` and
-`SPLIT_DEV_TOKEN`, matching the server environment. Optional
-`SPLIT_OPEN_PREVIEW: true` opens the local preview immediately for simulator QA.
-Never ship that token or this local preview configuration in a public build.
+- Original invitations depended on Firebase Dynamic Links. The new authenticated
+  invite/join backend and replacement links are not implemented. The button
+  reports this honestly; creating a local participant works.
+- Original profile/group photo picking and Firebase Storage upload still need a
+  replacement media flow. The twenty bundled group icons work.
+- Push, email-notification preferences and Report a problem were empty actions in
+  the inspected Swift settings source. They are not represented as working in DEV.
+- The post-create `Group Created` / share screen is not yet ported; Flutter returns
+  to the refreshed group list after successful creation.
+- Visual comparison is a screen-by-screen effort, not a blanket claim of 100%
+  pixel parity on every device, accessibility size or unvisited state.
+
+## Data and backend changes in the parity pass
+
+`POST /api/v1/groups/<id>/settings` now accepts a validated icon (1–20).
+`POST /api/v1/groups/<id>/delete` is owner-only and deletes that group's related
+rows transactionally, only after an explicit user action. State includes the role
+so non-owners are not offered this control. No migrations, imports or database
+cleanup are performed by this UI change. Existing auth remains unchanged.
+
+The recovered source copy remains outside Git under the workspace's private
+`.local/split-import` folder. Its SHA-256 is checked unchanged during validation.
+Live UI comparisons are read-only: no real expenses, shares or settlements are
+created/changed to produce screenshots. Domain write tests use disposable data.
+
+## Run and validate
+
+From the repository root:
 
 ```sh
+python -m unittest services.identity.test_identity services.identity.test_http services.identity.test_provider services.identity.test_provision services.identity.test_deployment_check services.backend.test_mysql_app -q
 cd apps/mobile
-flutter run --dart-define-from-file=/absolute/private/config.json -d DEVICE_ID
-```
-
-For Android emulator the Mac loopback is normally reached using 10.0.2.2; configure
-that development URL separately. Android has not yet been device-tested. The
-backend binds to localhost only and is not a dev/staging/prod deployment.
-
-## Validation
-
-```sh
-python3 -m unittest discover -s tests -v
-cd apps/mobile
-flutter analyze
 flutter test
-flutter build ios --simulator --dart-define-from-file=/absolute/private/config.json
+flutter analyze --no-pub
+flutter build ios --simulator --debug --flavor dev --no-pub --dart-define-from-file=config/development.json
+flutter build ios --release --flavor dev --no-pub --dart-define-from-file=config/development.json
+flutter build apk --debug --flavor dev --no-pub --dart-define-from-file=config/development.json
 ```
 
-## After all four v0 applications
-
-1. Agree on shared account flows, provider support and session handling.
-2. Inventory actual per-environment databases and backups, including STATZ.
-3. Export a copy of Firebase data and reconcile expense balances before import.
-4. Add account authorization, migrations, MySQL and isolated dev/staging/prod.
-5. Complete visual comparison screen-by-screen and user acceptance before release.
-
-No backend deployment is configured by this change. Dev code push must not be
-mistaken for a running public Split API.
-
-## Local recovery and closer expense flow
-
-The simulator's Firestore cache was copied while the original application was
-stopped, then the original application was restarted. Only a separate working
-copy was opened by LevelDB. Recovery yielded 4 groups and all 29 expenses referenced
-by those groups. The single registered profile and offline participants were
-preserved. Each expense total equals its shares; the imported net balance is -27,
-matching the original home. No currency was stored in the original schema, so the
-import does not invent a currency. Raw documents and legacy member mappings remain
-in the private local database for reconciliation. No personal data is in Git.
-
-This verifies the cached groups, not completeness of the entire Firebase project
-or freshness against the server. The immutable cache copy, export JSON and imported
-SQLite are outside this repository in the workspace's private `.local/split-import`
-directory. Original Firebase is unchanged. The demo database is also retained.
-
-`decode_firestore_cache.py` consumes a hex dump produced from a **working copy** by
-`export_leveldb_copy.cc` (built against the pinned legacy LevelDB sources).
-`import_legacy.py EXPORT_JSON NEW_DB_PATH` refuses to overwrite an existing database
-and checks references and exact minor units before importing.
-
-The expense screen now follows the original sequence: What is this for? → How
-much was …? → Splitting … with → split review. Participant cards are 180 high,
-blue at 15% opacity when selected, with a grey 30% border and purple editable
-amounts. Manual edits turn the indicator red; the remainder is distributed over
-unlocked selected participants. The all-participants switch selects/clears all.
-The confirmation action requires an exact total, improving the old ±0.5 tolerance.
-Widget tests cover selection, color, manual remainder and reaching review.
+`config/development.json` contains public client configuration only. Never embed
+private auth tokens, certificates or provider secrets. Backend changes pushed to
+`dev` trigger the existing Windows checks/backup/deploy workflow; Mac does not
+manage Windows PM2 directly.

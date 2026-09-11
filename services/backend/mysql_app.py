@@ -80,12 +80,21 @@ def create_app(identity):
      permission=identity.one(c,"SELECT role FROM split_group_users WHERE group_id=:g AND user_id=:u"+suffix,g=group,u=user['id'])
      if not permission or permission['role'] not in ('owner','editor'):raise AuthError('group_not_found',404)
      identity.one(c,'SELECT id FROM split_groups WHERE id=:g'+suffix,g=group)
-    mutate(scoped,'/'+path,data)
+    if path.startswith('groups/') and path.endswith('/delete'):
+     if len(path.split('/'))!=3 or permission['role']!='owner':raise AuthError('group_not_found',404)
+     # Explicit deletion is owner-only. No import or migration deletes data.
+     identity.execute(c,'DELETE FROM split_shares WHERE expense_id IN (SELECT id FROM split_expenses WHERE group_id=:g)',g=group)
+     for table in ('split_expenses','split_settlements','split_group_users','split_members','split_group_legacy_metadata','split_groups'):
+      column='id' if table=='split_groups' else 'group_id'
+      identity.execute(c,f'DELETE FROM {table} WHERE {column}=:g',g=group)
+    else:mutate(scoped,'/'+path,data)
    elif path!='state':raise AuthError('not_found',404)
    state=snapshot(scoped)
    for g in state['groups']:
-    row=identity.one(c,'SELECT member_id FROM split_group_users WHERE group_id=:g AND user_id=:u',g=g['id'],u=user['id'])
+    if hasattr(g.get('created_at'),'isoformat'):g['created_at']=g['created_at'].isoformat()
+    row=identity.one(c,'SELECT member_id,role FROM split_group_users WHERE group_id=:g AND user_id=:u',g=g['id'],u=user['id'])
     mid=row['member_id'] if row else None
+    g['role']=row['role'] if row else None
     g['my_member_id']=mid if any(m['id']==mid for m in g['members']) else None
     # Keep older mobile builds correct when a verified binding exists.
     if g['my_member_id']:g['members'].sort(key=lambda m:(m['id']!=mid,m['id']))
