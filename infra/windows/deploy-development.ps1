@@ -50,7 +50,21 @@ try {
     $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue)
     if ($listeners.Count) {
         $splitPid = (pm2.cmd pid split-server | Out-String).Trim()
-        if ($splitPid -notmatch '^\d+$' -or @($listeners | Where-Object { $_.OwningProcess -ne [int]$splitPid }).Count) { throw 'Split DEV port is occupied by another process' }
+        if ($splitPid -notmatch '^\d+$' -or [int]$splitPid -le 0) { throw 'Cannot identify Split PM2 process' }
+        foreach ($listener in $listeners) {
+            $candidate = [int]$listener.OwningProcess
+            $owned = $false
+            # Windows Python venv launchers may own a child Python process.
+            for ($depth = 0; $depth -lt 16 -and $candidate -gt 0; $depth++) {
+                if ($candidate -eq [int]$splitPid) { $owned = $true; break }
+                $processInfo = Get-CimInstance Win32_Process -Filter "ProcessId = $candidate" -ErrorAction Stop
+                if (-not $processInfo) { break }
+                $parentId = [int]$processInfo.ParentProcessId
+                if ($parentId -eq $candidate) { break }
+                $candidate = $parentId
+            }
+            if (-not $owned) { throw 'Split DEV port is occupied by another process' }
+        }
     }
     $env:SPLIT_RELEASE_COMMIT = $ExpectedCommit
     $env:SPLIT_DEV_PORT = "$Port"
