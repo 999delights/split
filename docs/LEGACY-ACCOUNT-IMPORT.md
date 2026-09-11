@@ -32,3 +32,14 @@ ownership links share one transaction. Existing group ID collisions abort.
 The source-hash ledger makes repeat execution idempotent. Source timestamps,
 minor-unit amounts, relationships, colors and icon metadata are preserved.
 The profile nickname and all existing destination groups remain untouched.
+
+## Explicit account/member binding repair
+
+Migration 003 adds a nullable member_id relation to group membership. New groups
+bind the creator to the self member during group creation. Existing recovered
+groups are repaired separately using legacy_member_map and the source user ID,
+scoped to the user_id recorded in split_imports. No names or row ordering are used.
+Run the DEV deployment workflow manually with apply_migrations=true and
+bind_recovered_members=true; backup precedes both migration and binding repair.
+Expenses, amounts, shares and original recovery files are not changed.
+API exposes my_member_id and keeps that member first for older mobile clients.

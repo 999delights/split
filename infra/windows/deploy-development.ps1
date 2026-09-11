@@ -2,7 +2,8 @@ param(
     [ValidateRange(1024,65535)][int]$Port = 3400,
     [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{40}$')][string]$ExpectedCommit,
     [string]$DeployRoot = 'D:\network_share\apps\development\split',
-    [switch]$ApplyMigrations
+    [switch]$ApplyMigrations,
+    [switch]$BindRecoveredMembers
 )
 $ErrorActionPreference = 'Stop'
 function Invoke-Checked {
@@ -31,9 +32,16 @@ try {
     Invoke-Checked $python @('-m', 'services.identity.deployment_check', '--env-file', $identity, '--database-file', $database)
     Invoke-Checked $python @('-m', 'unittest', 'services.identity.test_identity', 'services.identity.test_http', 'services.identity.test_provider', 'services.identity.test_provision', 'services.backend.test_mysql_app', '-q')
     Invoke-Checked $python @('infra\db\db.py', 'db:status', '--env-file', $database)
+    if ($BindRecoveredMembers -and -not $ApplyMigrations) { throw 'Binding repair requires backup/migration mode' }
     if ($ApplyMigrations) {
         Invoke-Checked $python @('D:\app-runtime\tools\backup_app_database.py', '--environment', 'development', '--app', 'split')
         Invoke-Checked $python @('infra\db\db.py', 'db:migrate', '--env-file', $database)
+    }
+    if ($BindRecoveredMembers) {
+        $source = 'D:\network_share\apps\data-transfer\split-development-legacy-49cff069\imported.db'
+        $hash = '49cff069aeaa7ae2850a47f6da8678c0289a78f56d82a04e80c6a4705a9e4ac4'
+        Invoke-Checked $python @('scripts\bind_recovered_members.py', '--source', $source, '--sha256', $hash, '--database-file', $database)
+        Invoke-Checked $python @('scripts\bind_recovered_members.py', '--source', $source, '--sha256', $hash, '--database-file', $database, '--apply')
     }
     # Pending migrations stop deployment unless explicitly applied above.
     Invoke-Checked $python @('infra\db\db.py', 'db:validate', '--env-file', $database)

@@ -352,7 +352,8 @@ class _HomeState extends State<Home> {
     final groups = data['groups'] as List;
     final totals = <String, int>{};
     for (final g in groups) {
-      final me = g['members'][0]['id'];
+      final me = g['my_member_id'];
+      if (me == null) continue;
       totals[g['currency']] =
           (totals[g['currency']] ?? 0) + (g['balances'][me] as int);
     }
@@ -643,7 +644,7 @@ class _GroupPageState extends State<GroupPage> {
                         expenses.fold<int>(
                           0,
                           (a, e) =>
-                              a + ((e['shares'][members[0]['id']] ?? 0) as int),
+                              a + ((e['shares'][g['my_member_id']] ?? 0) as int),
                         ),
                         g['currency'],
                       ),
@@ -949,8 +950,8 @@ class _ExpenseFormState extends State<ExpenseForm> {
   late final amount = TextEditingController(
     text: widget.expense == null ? '' : money(widget.expense!['amount'], ''),
   );
-  late String payer =
-      widget.expense?['payer'] ?? widget.group['members'][0]['id'];
+  late String? payer =
+      widget.expense?['payer'] ?? widget.group['my_member_id'];
   late final Map<String, TextEditingController> shares = {
     for (final m in widget.group['members'])
       m['id']: TextEditingController(

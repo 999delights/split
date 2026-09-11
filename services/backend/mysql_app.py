@@ -28,6 +28,7 @@ class ScopedConnection:
   if sql.startswith('UPDATE profile SET'):
    sql=sql.replace('profile','split_profiles')+' WHERE id=:uid';params['uid']=self.user['id']
   created=sql.startswith('INSERT INTO groups ')
+  member_created=sql.startswith('INSERT INTO members ')
   for table,columns in COLUMNS.items():sql=sql.replace('INSERT INTO '+table+' VALUES','INSERT INTO '+table+'('+columns+') VALUES')
   if sql.startswith('SELECT * FROM groups ORDER BY'):
    sql='SELECT g.* FROM split_groups g JOIN split_group_users u ON u.group_id=g.id WHERE u.user_id=:uid ORDER BY g.created_at DESC'
@@ -37,6 +38,9 @@ class ScopedConnection:
   result=self.c.execute(text(sql),params)
   if created:
    self.c.execute(text("INSERT INTO split_group_users(group_id,user_id,role) VALUES(:g,:u,'owner')"),{'g':args[0],'u':self.user['id']})
+  if member_created:
+   # The initial self member is inserted immediately after its new group.
+   self.c.execute(text("UPDATE split_group_users SET member_id=:m WHERE group_id=:g AND user_id=:u AND role='owner' AND member_id IS NULL AND (SELECT COUNT(*) FROM split_members WHERE group_id=:g)=1"),{'m':args[0],'g':args[1],'u':self.user['id']})
   return Result(list(result.mappings()) if result.returns_rows else [])
  def executemany(self,sql,args):
   for values in args:self.execute(sql,values)
@@ -78,5 +82,12 @@ def create_app(identity):
      identity.one(c,'SELECT id FROM split_groups WHERE id=:g'+suffix,g=group)
     mutate(scoped,'/'+path,data)
    elif path!='state':raise AuthError('not_found',404)
-   return jsonify(snapshot(scoped))
+   state=snapshot(scoped)
+   for g in state['groups']:
+    row=identity.one(c,'SELECT member_id FROM split_group_users WHERE group_id=:g AND user_id=:u',g=g['id'],u=user['id'])
+    mid=row['member_id'] if row else None
+    g['my_member_id']=mid if any(m['id']==mid for m in g['members']) else None
+    # Keep older mobile builds correct when a verified binding exists.
+    if g['my_member_id']:g['members'].sort(key=lambda m:(m['id']!=mid,m['id']))
+   return jsonify(state)
  return app

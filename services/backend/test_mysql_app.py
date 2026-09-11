@@ -18,6 +18,7 @@ class DomainTest(unittest.TestCase):
     if not statement.strip():continue
     statement=re.sub(r'\) ENGINE=.*',')',statement,flags=re.S).replace('CURRENT_TIMESTAMP(6)','CURRENT_TIMESTAMP')
     c.execute(text(statement))
+   c.execute(text('ALTER TABLE split_group_users ADD COLUMN member_id VARCHAR(191)'))
   self.client=create_app(self.identity).test_client()
   session=self.fixture.verified();self.owner=session['user']['id']
   self.headers={'Authorization':'Bearer '+session['access_token']}
@@ -64,3 +65,11 @@ class DomainTest(unittest.TestCase):
   self.assertNotEqual(state.json['profile']['nickname'],'Owner')
   self.identity.logout(self.owner,None,True)
   self.assertEqual(self.client.get('/api/v1/state',headers=self.headers).status_code,401)
+
+ def test_member_binding_survives_changed_member_order_and_name(self):
+  g=self.group();mid=g['my_member_id'];self.assertIsNotNone(mid)
+  self.post('groups/'+g['id']+'/members',{'name':'Me'})
+  with self.identity.engine.begin() as c:c.execute(text("UPDATE split_members SET name='Renamed owner' WHERE id=:m"),{'m':mid})
+  g=self.client.get('/api/v1/state',headers=self.headers).json['groups'][0]
+  self.assertEqual(g['my_member_id'],mid)
+  self.assertEqual(g['members'][0]['id'],mid)

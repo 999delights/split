@@ -18,6 +18,10 @@ on:
         required: false
         default: 3400
         type: number
+      bind_recovered_members:
+        description: Bind the four imported legacy members using the verified original ID map
+        default: false
+        type: boolean
       apply_migrations:
         description: Apply pending development migrations after backup
         default: false
@@ -43,6 +47,7 @@ jobs:
         env:
           DEPLOY_COMMIT: ${{ github.sha }}
           DEPLOY_PORT: ${{ inputs.port || vars.SPLIT_DEV_PORT || 3400 }}
+          BIND_RECOVERED: ${{ inputs.bind_recovered_members || false }}
           APPLY_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_migrations || false }}
         run: |
-          & .\infra\windows\deploy-development.ps1 -DeployRoot 'D:\network_share\apps\development\split' -Port ([int]$env:DEPLOY_PORT) -ExpectedCommit $env:DEPLOY_COMMIT -ApplyMigrations:($env:APPLY_MIGRATIONS -eq 'true')
+          & .\infra\windows\deploy-development.ps1 -DeployRoot 'D:\network_share\apps\development\split' -Port ([int]$env:DEPLOY_PORT) -ExpectedCommit $env:DEPLOY_COMMIT -ApplyMigrations:($env:APPLY_MIGRATIONS -eq 'true') -BindRecoveredMembers:($env:BIND_RECOVERED -eq 'true')
