@@ -1,4 +1,4 @@
-package com.dddcreate.split_paper
+package com.dddcreate.split
 
 import io.flutter.embedding.android.FlutterActivity
 

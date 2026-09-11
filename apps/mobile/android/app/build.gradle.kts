@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.dddcreate.split_paper"
+    namespace = "com.dddcreate.split"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,13 +21,22 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.dddcreate.split_paper"
+        applicationId = "com.dddcreate.split"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+    }
+
+    flavorDimensions += "environment"
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationId = "com.dddcreate.split.dev"
+            resValue("string", "app_name", "Split Dev")
+        }
     }
 
     buildTypes {

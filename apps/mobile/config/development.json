@@ -1,0 +1,6 @@
+{
+  "APP_AUTH_V2": "true",
+  "SPLIT_API_BASE_URL": "https://split-api.dddcreate.com",
+  "AUTH_GOOGLE_SERVER_CLIENT_ID": "878263733237-811vt1hhthe6g1ng8q9igpmclalp5a4a.apps.googleusercontent.com",
+  "AUTH_GOOGLE_IOS_CLIENT_ID": "878263733237-02b5po0ha517hj43dsgj7n2jo44bpd9a.apps.googleusercontent.com"
+}
