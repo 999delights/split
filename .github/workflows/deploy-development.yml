@@ -3,16 +3,6 @@ on:
   push:
     branches: [dev]
     paths:
-      - 'services/backend/**'
-      - 'services/identity/**'
-      - 'infra/db/**'
-      - 'infra/windows/**'
-      - 'infra/pm2/**'
-      - '.github/workflows/deploy-development.yml'
-      - '.github/workflows/database-checks.yml'
-  push:
-    branches: [dev]
-    paths:
       - services/backend/**
       - services/identity/**
       - infra/db/**
@@ -26,10 +16,11 @@ on:
       port:
         description: Confirmed free Windows loopback port for Split API
         required: false
+        default: 3400
         type: number
       apply_migrations:
         description: Apply pending development migrations after backup
-        default: true
+        default: false
         type: boolean
 permissions:
   contents: read
@@ -41,8 +32,7 @@ jobs:
     if: github.ref == 'refs/heads/dev'
     uses: ./.github/workflows/database-checks.yml
   deploy:
-    # Until Windows confirms the port, only checks run; no server or migrations.
-    if: github.ref == 'refs/heads/dev' && (vars.SPLIT_DEV_PORT != '' || inputs.port > 0)
+    if: github.ref == 'refs/heads/dev'
     needs: database-checks
     runs-on: [self-hosted, Windows, X64]
     timeout-minutes: 20
@@ -52,7 +42,7 @@ jobs:
         shell: pwsh
         env:
           DEPLOY_COMMIT: ${{ github.sha }}
-          DEPLOY_PORT: ${{ inputs.port || vars.SPLIT_DEV_PORT }}
-          APPLY_MIGRATIONS: ${{ github.event_name == 'push' || inputs.apply_migrations }}
+          DEPLOY_PORT: ${{ inputs.port || vars.SPLIT_DEV_PORT || 3400 }}
+          APPLY_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_migrations || false }}
         run: |
           & .\infra\windows\deploy-development.ps1 -DeployRoot 'D:\network\_share\apps\development\split' -Port ([int]$env:DEPLOY_PORT) -ExpectedCommit $env:DEPLOY_COMMIT -ApplyMigrations:($env:APPLY_MIGRATIONS -eq 'true')
