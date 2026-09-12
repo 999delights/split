@@ -45,6 +45,20 @@ class ProvisionTests(unittest.TestCase):
         self.assertFalse((self.root / 'bliss.identity.env').exists())
         self.assertEqual(list(self.root.glob('*.key')), [])
 
+    def test_production_uses_the_unprefixed_database_name(self):
+        self.prepare()
+        config = self.root / 'bliss.identity.env'
+        config.write_text(config.read_text().replace("APP_ENV='development'", "APP_ENV='production'"))
+        db = self.root / 'bliss.database.env'
+        db.write_text(db.read_text().replace('dev_bliss_db', 'bliss_db'))
+        identity = load_config('bliss', config, db)
+        self.assertEqual(identity.config['environment'], 'production')
+        identity.engine.dispose()
+
+        db.write_text(db.read_text().replace('bliss_db', 'prod_bliss_db'))
+        with self.assertRaisesRegex(ValueError, 'database mismatch'):
+            load_config('bliss', config, db)
+
     def test_missing_smtp_environment_writes_nothing(self):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(ValueError):

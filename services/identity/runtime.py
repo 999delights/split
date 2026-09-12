@@ -17,8 +17,9 @@ def load_config(product, env_file, database_file):
     values={**dotenv_values(env_file)}
     db=dotenv_values(database_file)
     environment=values.get('APP_ENV','development')
-    names={'development':'dev','staging':'staging','production':'prod'}
-    if environment not in names or db.get('APP_DB_NAME')!=names[environment]+'_'+product+'_db':
+    prefixes={'development':'dev_','staging':'staging_','production':''}
+    expected_database=prefixes.get(environment,'')+product+'_db'
+    if environment not in prefixes or db.get('APP_DB_NAME')!=expected_database:
         raise ValueError('Product/environment/database mismatch')
     def required(key):
         value=values.get(key)
