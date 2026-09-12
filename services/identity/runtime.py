@@ -33,7 +33,7 @@ def load_config(product, env_file, database_file):
         raise ValueError('SMTP must use verified TLS')
     if not 1 <= int(os.environ.get('SMTP_PORT', '587')) <= 65535:
         raise ValueError('Invalid SMTP port')
-    google_ids=[v.strip() for v in required('GOOGLE_CLIENT_IDS').split(',') if v.strip()]
+    google_ids=[v.strip() for v in values.get('GOOGLE_CLIENT_IDS','').split(',') if v.strip()]
     if product=='split' and environment=='development' and (len(google_ids)!=1 or not google_ids[0].endswith('.apps.googleusercontent.com')):
         raise ValueError('Configure exactly one Split DEV Google Web audience')
     secret=Path(required('AUTH_SECRET_FILE')).read_text().strip()
@@ -41,8 +41,8 @@ def load_config(product, env_file, database_file):
     config={'product':product,'environment':environment,'secret':secret,'email_key':key,
         'admin_read_token_file':values.get('AUTH_ADMIN_READ_TOKEN_FILE'),
         'admin_write_token_file':values.get('AUTH_ADMIN_WRITE_TOKEN_FILE'),
-        'public_url':required('AUTH_PUBLIC_URL'),'google_client_ids':required('GOOGLE_CLIENT_IDS').split(','),
-        'apple_client_ids':required('APPLE_CLIENT_IDS').split(','),
+        'public_url':required('AUTH_PUBLIC_URL'),'google_client_ids':google_ids,
+        'apple_client_ids':[x.strip() for x in values.get('APPLE_CLIENT_IDS','').split(',') if x.strip()],
         'mail_enabled':values.get('MAIL_ENABLED')=='true','smtp_from':required('SMTP_FROM'),
         'smtp_reply_to':Identity.email(values['SMTP_REPLY_TO']) if values.get('SMTP_REPLY_TO') else None,
         'message_domain':required('SMTP_MESSAGE_DOMAIN'),'smtp_host':smtp_required('SMTP_HOST'),

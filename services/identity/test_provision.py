@@ -49,10 +49,15 @@ class ProvisionTests(unittest.TestCase):
         self.prepare()
         config = self.root / 'bliss.identity.env'
         config.write_text(config.read_text().replace("APP_ENV='development'", "APP_ENV='production'"))
+        config.write_text('\n'.join(
+            'GOOGLE_CLIENT_IDS=' if line.startswith('GOOGLE_CLIENT_IDS=') else line
+            for line in config.read_text().splitlines()
+        ) + '\n')
         db = self.root / 'bliss.database.env'
         db.write_text(db.read_text().replace('dev_bliss_db', 'bliss_db'))
         identity = load_config('bliss', config, db)
         self.assertEqual(identity.config['environment'], 'production')
+        self.assertEqual(identity.config['google_client_ids'], [])
         identity.engine.dispose()
 
         db.write_text(db.read_text().replace('bliss_db', 'prod_bliss_db'))
