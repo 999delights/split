@@ -1,5 +1,6 @@
 """Versioned text templates used by both Admin previews and actual SMTP delivery."""
 import re
+from datetime import datetime, timezone
 from .core import AuthError
 
 from urllib.parse import urlsplit, parse_qs
@@ -9,7 +10,7 @@ from .email_layout import render_html
 TEMPLATES = BRAND['templates']
 EVENTS = {
  'email-verification': 'Email registration, resend or explicit email-password linking',
- 'welcome': 'First social registration or first successful email confirmation (once per account)',
+ 'welcome': 'Initial social registration or initial email registration confirmation (once per account)',
  'password-reset': 'Eligible forgot-password request',
  'password-changed': 'Successful password reset',
  'identity-linked': 'Successful new Google/Apple link or confirmed email-password link; once per identity, to a verified contact',
@@ -46,6 +47,20 @@ def validate(key, value):
         for name in variables(key): remaining=remaining.replace('{{'+name+'}}','')
         if '{{' in remaining or '}}' in remaining: raise AuthError('unknown_template_variable')
     return value
+
+
+def preview_context(value):
+    """Only public, bounded personalization fields; never recipient/URL/token input."""
+    if not isinstance(value,dict) or set(value)-{'display_name','provider'}:
+        raise AuthError('invalid_preview_context')
+    if 'display_name' in value:
+        name=value['display_name']
+        if (not isinstance(name,str) or not name.strip() or len(name)>120 or
+            any(ord(char)<32 or ord(char)==127 for char in name)):
+            raise AuthError('invalid_preview_context')
+    if 'provider' in value and (not isinstance(value['provider'],str) or value['provider'] not in ('google','apple','email')):
+        raise AuthError('invalid_preview_context')
+    return {'display_name':'Alex','provider':'google','preview':True,**value}
 
 
 def get(identity, key, c=None):
@@ -117,9 +132,10 @@ def render(identity,key,value=None,action_url=None,context=None):
     action_label=ACTIONS[key][0] if key in ACTIONS else None
     note=NOTES[key]
     preheader=' '.join(body.split('\n\n')[1:]).replace('\n',' ')[:160] or subject
+    year=datetime.fromtimestamp(identity.now(),timezone.utc).year
     markup=render_html(BRAND,title=subject,body=body,preheader=preheader,label=LABELS[key],
-                       action_url=action_url,action_label=action_label,security_note=note,environment=environment)
+                       action_url=action_url,action_label=action_label,security_note=note,environment=environment,year=year)
     text=BRAND['name']+' — '+BRAND['tagline']+'\n\n'+subject+'\n\n'+body
     if action_url:text+='\n\n'+action_label+':\n'+action_url
-    text+='\n\n'+note+'\n\n'+BRAND['footer']+'\n'+BRAND['name']+' · Account email'
+    text+='\n\n'+note+'\n\n'+BRAND['footer']+'\n'+BRAND['name']+' · Account email · '+str(year)+'\nContact: '+BRAND['contact_email']+'\n'+BRAND['name']+' will never ask for your password by email.'
     return dict(subject=label+BRAND['name']+' — '+subject,text=text,html=markup)

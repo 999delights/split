@@ -8,6 +8,7 @@ from urllib.parse import quote
 from .core import AuthError
 
 from .templates import TEMPLATES, render
+from .email_brand import BRAND
 
 
 
@@ -28,8 +29,8 @@ def message(identity,row):
         'provider':payload.get('provider')})
     msg['Subject']=rendered['subject']
     msg['From']=formataddr((brand, parseaddr(identity.config['smtp_from'])[1]))
-    if identity.config.get('smtp_reply_to'):
-        msg['Reply-To']=identity.config['smtp_reply_to']
+    reply_to=parseaddr(identity.config.get('smtp_reply_to') or BRAND['contact_email'])[1]
+    msg['Reply-To']=formataddr((brand,reply_to))
     msg['To']=row['recipient']
     msg['Message-ID']='<'+row['id']+'@'+identity.config['message_domain']+'>'
     msg.set_content(rendered['text'])

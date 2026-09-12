@@ -146,7 +146,10 @@ def blueprint(identity):
     @bp.post('/email-templates/<key>/preview')
     def template_preview(key):
         data=request.get_json(silent=True)
-        if not isinstance(data,dict): raise AuthError('invalid_template')
+        if not isinstance(data,dict) or set(data)-{'subject','body','context'}:
+            raise AuthError('invalid_template')
+        context=templates.preview_context(data.get('context',{}))
+        value={k:v for k,v in data.items() if k!='context'}
         action='https://preview.invalid/confirmation' if key in ('email-verification','password-reset') else None
-        return jsonify(preview=templates.render(identity,key,data or None,action,context={'display_name':'Alex','provider':'google','preview':True}),sends_email=False)
+        return jsonify(preview=templates.render(identity,key,value or None,action,context=context),sends_email=False)
     return bp

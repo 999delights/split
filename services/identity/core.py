@@ -181,7 +181,7 @@ class Identity:
                     self.execute(c,'INSERT INTO auth_passwords(user_id,password_hash,changed_at) VALUES(:u,:h,:n)',u=uid,h=row['pending_password_hash'],n=self.now())
                     self.event(c,uid,'provider_linked','email')
                     self.notify_identity_linked(c,uid,'email',uid)
-                if not self.one(c,'SELECT id FROM auth_email_outbox WHERE dedupe_key=:d',d='welcome:'+uid):
+                elif not self.one(c,'SELECT id FROM auth_email_outbox WHERE dedupe_key=:d',d='welcome:'+uid):
                     self.enqueue(c,uid,row['email'],'welcome',{},'welcome:'+uid)
             else:
                 self.execute(c, 'UPDATE auth_passwords SET password_hash=:h,changed_at=:n WHERE user_id=:u',h=new_hash,n=self.now(),u=uid)

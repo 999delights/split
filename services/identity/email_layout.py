@@ -3,7 +3,7 @@ from html import escape
 
 
 def render_html(brand, *, title, body, preheader, label, action_url, action_label,
-                security_note, environment):
+                security_note, environment, year):
     b = brand
     esc = lambda value: escape(str(value), quote=True)
     p = {key: esc(value) for key, value in b.items() if key != 'templates'}
@@ -46,7 +46,13 @@ def render_html(brand, *, title, body, preheader, label, action_url, action_labe
                   '<a href="' + esc(action_url) + '" style="display:inline-block;padding:17px 24px;'
                   'border:1px solid ' + p['accent'] + ';border-radius:inherit;font-family:Arial,Helvetica,sans-serif;'
                   'font-size:16px;font-weight:bold;text-decoration:none;color:' + p['button_ink'] + ';">'
-                  + esc(action_label) + '</a></td></tr></table></td></tr>')
+                  + esc(action_label) + '</a></td></tr></table>'
+                  '<p style="margin:20px 0 8px;font-size:12px;line-height:20px;color:' + p['muted'] + ';">'
+                  'If the button does not work, copy and paste this link:</p>'
+                  '<p style="margin:0;font-size:12px;line-height:20px;word-break:break-all;overflow-wrap:anywhere;word-wrap:break-word;">'
+                  '<a href="' + esc(action_url) + '" style="color:' + p['ink'] + ';text-decoration:underline;'
+                  'word-break:break-all;overflow-wrap:anywhere;word-wrap:break-word;">'
+                  + esc(action_url) + '</a></p></td></tr>')
     env = '' if environment == 'production' else ('<span style="font-size:10px;letter-spacing:1px;">'
                                                   + esc(environment.upper()) + ' &nbsp; / &nbsp; </span>')
     return f'''<!doctype html>
@@ -63,7 +69,7 @@ a[x-apple-data-detectors] {{color:inherit!important;text-decoration:none!importa
 <div style="display:none;font-size:1px;line-height:1px;color:{p['background']};max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">{esc(preheader)}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="{p['background']}" style="background:{p['background']};"><tr><td class="outer" align="center" style="padding:40px 16px;">
 <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0"><tr><td><![endif]-->
-<table class="frame" role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="{p['surface']}" style="width:100%;max-width:600px;background:{p['surface']};{border}border-radius:{p['radius']}px;">
+<table class="frame" role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="{p['surface']}" style="width:100%;max-width:600px;table-layout:fixed;background:{p['surface']};{border}border-radius:{p['radius']}px;">
 <tr><td class="pad" style="padding:30px 36px 0;font-size:10px;line-height:18px;letter-spacing:2px;color:{p['muted']};">{env}{p['eyebrow']}</td></tr>
 <tr><td class="pad" style="padding:18px 36px 8px;color:{p['ink']};{mark_style}">{wordmark}</td></tr>
 <tr><td class="pad" style="padding:0 36px 28px;color:{p['muted']};font-size:14px;line-height:22px;">{p['tagline']}</td></tr>
@@ -75,6 +81,6 @@ a[x-apple-data-detectors] {{color:inherit!important;text-decoration:none!importa
 <tr><td class="pad" style="padding:0 36px 30px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid {p['line']};padding-top:18px;font-size:12px;line-height:20px;color:{p['muted']};">{esc(security_note)}</td></tr></table></td></tr>
 <tr><td class="pad" style="padding:20px 36px;border-top:1px solid {p['line']};font-size:12px;line-height:20px;color:{p['muted']};">{p['footer']}</td></tr>
 </table>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;"><tr><td align="center" style="padding:20px 24px 0;font-size:11px;line-height:18px;color:{p['muted']};">{p['name']} · Account email<br>You received this email about your {p['name']} account. We will never ask you to reply with a password.</td></tr></table>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;"><tr><td align="center" style="padding:20px 24px 0;font-size:11px;line-height:18px;color:{p['muted']};">{p['name']} · Account email · {esc(year)}<br><a href="mailto:{p['contact_email']}" style="color:{p['muted']};text-decoration:underline;word-break:break-all;">{p['contact_email']}</a><br>You received this email about your {p['name']} account. {p['name']} will never ask for your password by email.</td></tr></table>
 <!--[if mso]></td></tr></table><![endif]-->
 </td></tr></table></body></html>'''

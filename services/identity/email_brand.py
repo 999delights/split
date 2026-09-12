@@ -1,5 +1,6 @@
 """Product-owned email palette and default copy. No external assets or secrets."""
 BRAND = {'product': 'split',
+ 'contact_email': 'split@dddcreate.com',
  'name': 'Split Paper',
  'wordmark': 'Split Paper.',
  'tagline': 'Split expenses with any group.',

@@ -59,7 +59,7 @@ class EmailTemplateTest(unittest.TestCase):
                 self.assertLess(len(rendered['html'].encode()),40000)
                 markup=Markup(rendered['html'])
                 self.assertFalse({'script','iframe','form','img','link'} & set(markup.tags))
-                self.assertEqual(markup.links,[action] if action else [])
+                self.assertEqual(markup.links,([action,action] if action else [])+['mailto:'+BRAND['contact_email']])
                 self.assertIn('[TEST]',rendered['subject'])
                 self.assertEqual(templates.get(self.i,key)['automatically_triggered'],key!='security-alert')
     def test_user_data_escaped_and_not_reinterpolated_or_put_in_headers(self):
@@ -74,8 +74,8 @@ class EmailTemplateTest(unittest.TestCase):
         base=self.i.config['public_url']+'/action'
         good=base+'#purpose=verify&token='+token
         markup=templates.render(self.i,'email-verification',action_url=good)['html']
-        parsed=Markup(markup); self.assertEqual(parsed.links,[good])
-        self.assertNotIn(token,''.join(parsed.content))
+        parsed=Markup(markup); self.assertEqual(parsed.links,[good,good,'mailto:'+BRAND['contact_email']])
+        self.assertEqual(''.join(parsed.content).count(token),1)
         bad=['javascript:alert(1)','https://outside.invalid/#purpose=verify&token='+token,
              base+'?token='+token,base+'#purpose=reset&token='+token,
              good+'&redirect=https://outside.invalid',good+'&token='+token]
@@ -91,7 +91,7 @@ class EmailTemplateTest(unittest.TestCase):
                 reply=self.client.post(self.prefix+'/email-templates/'+key+'/preview',json={},headers=self.headers)
                 self.assertEqual(reply.status_code,200,reply.json); self.assertFalse(reply.json['sends_email'])
                 markup=Markup(reply.json['preview']['html'])
-                self.assertEqual(markup.links,['https://preview.invalid/confirmation'] if key in templates.ACTIONS else [])
+                self.assertEqual(markup.links,(['https://preview.invalid/confirmation']*2 if key in templates.ACTIONS else [])+['mailto:'+BRAND['contact_email']])
                 self.assertNotIn('token=',reply.text); self.assertNotIn('payload_encrypted',reply.text)
         self.assertEqual(self.rows(),before)
     def test_brand_wraps_saved_copy_without_overwriting_revisions_or_history(self):
@@ -112,7 +112,7 @@ class EmailTemplateTest(unittest.TestCase):
         self.assertIn('Test',plain); self.assertIn(BRAND['wordmark'],markup)
         for forbidden in ('do-not-render-this','never-render-either','evil.invalid'):
             self.assertNotIn(forbidden,msg.as_string())
-        self.assertNotIn(p['token'],''.join(Markup(markup).content))
+        self.assertEqual(''.join(Markup(markup).content).count(p['token']),1)
     def test_email_registration_welcome_only_after_confirmation_once(self):
         self.f.register(); self.assertEqual([r['template'] for r in self.rows()],['email-verification'])
         token=self.f.action(); self.i.consume(token,'verify')
@@ -183,5 +183,144 @@ class EmailTemplateTest(unittest.TestCase):
         self.f.register(); messages=[]; deliver_one(self.i,messages.append)
         self.assertEqual(len(messages),1); self.assertEqual(self.rows()[0]['payload_encrypted'],'')
         self.assertEqual(self.rows()[0]['status'],'sent')
+
+    def test_action_fallback_visible_clickable_and_plain_url_unchanged(self):
+        for key,purpose in [('email-verification','verify'),('password-reset','reset')]:
+            url=self.i.config['public_url']+'/action#purpose='+purpose+'&token='+secrets.token_urlsafe(80)
+            rendered=templates.render(self.i,key,action_url=url)
+            markup=Markup(rendered['html'])
+            self.assertEqual(markup.links[:2],[url,url])
+            self.assertIn('If the button does not work, copy and paste this link:',''.join(markup.content))
+            self.assertEqual(''.join(markup.content).count(url),1)
+            self.assertIn(url,rendered['text'])
+            self.assertIn('word-break:break-all',rendered['html']);self.assertIn('table-layout:fixed',rendered['html'])
+        for key in KEYS-{'email-verification','password-reset'}:
+            rendered=templates.render(self.i,key)
+            self.assertNotIn('If the button does not work',rendered['html'])
+            self.assertEqual(Markup(rendered['html']).links,['mailto:'+BRAND['contact_email']])
+
+    def test_contact_footer_current_year_and_transactional_headers(self):
+        from datetime import datetime,timezone
+        from email.utils import parseaddr
+        self.f.register();row=self.rows('email-verification')[0]
+        self.i.config.update(smtp_from='contact@dddcreate.com',smtp_reply_to=BRAND['contact_email'])
+        msg=message(self.i,row)
+        self.assertEqual(parseaddr(msg['From']),(BRAND['name'],'contact@dddcreate.com'))
+        self.assertEqual(parseaddr(msg['Reply-To']),(BRAND['name'],BRAND['contact_email']))
+        for year in [2026,2031]:
+            self.i.clock=lambda:datetime(year,1,1,tzinfo=timezone.utc).timestamp()
+            for key in KEYS:
+                result=templates.render(self.i,key)
+                self.assertIn(BRAND['name']+' · Account email · '+str(year),result['html'])
+                self.assertIn('mailto:'+BRAND['contact_email'],Markup(result['html']).links)
+                self.assertIn(BRAND['contact_email'],result['text']);self.assertIn(str(year),result['text'])
+                for content in [result['html'],result['text']]:
+                    self.assertIn('will never ask for your password by email.',content)
+                    self.assertNotIn('unsubscribe',content.lower());self.assertNotIn('newsletter',content.lower())
+        for environment in ['test','development','staging']:
+            self.i.config['environment']=environment
+            result=templates.render(self.i,'welcome')
+            self.assertIn('['+environment.upper()+']',result['subject']);self.assertIn(environment.upper(),result['html'])
+        self.i.config['environment']='production'
+        self.assertFalse(templates.render(self.i,'welcome')['subject'].startswith('['))
+        self.i.config.pop('smtp_reply_to',None)
+        self.assertEqual(parseaddr(message(self.i,row)['Reply-To']),(BRAND['name'],BRAND['contact_email']))
+
+    def preview(self,key,data):
+        return self.client.post(self.prefix+'/email-templates/'+key+'/preview',json=data,headers=self.headers)
+
+    def test_preview_context_only_and_copy_override_leave_database_unchanged(self):
+        templates.save(self.i,'identity-linked',dict(subject='Linked {{provider}}',body='Hello {{display_name}}. {{provider}} is ready.',expected_revision=0,actor='test-admin'))
+        before=templates.get(self.i,'identity-linked');self.f.register();outbox=self.rows()
+        for provider,label in [('google','Google'),('apple','Apple'),('email','Email and password')]:
+            for use_override in [False,True]:
+                data={'context':{'display_name':'<b>Alex & {{app_name}}</b>','provider':provider}}
+                if use_override:data.update(subject='Preview {{provider}}',body='{{display_name}} / {{provider}}')
+                response=self.preview('identity-linked',data)
+                self.assertEqual(response.status_code,200,response.json);self.assertFalse(response.json['sends_email'])
+                result=response.json['preview']
+                self.assertIn(label,result['subject']);self.assertIn(label,result['text'])
+                self.assertIn('&lt;b&gt;Alex &amp; {{app_name}}&lt;/b&gt;',result['html']);self.assertNotIn('<b>Alex',result['html'])
+                self.assertEqual(templates.get(self.i,'identity-linked'),before)
+        self.assertEqual(self.rows(),outbox)
+        with self.i.engine.connect() as c:
+            self.assertEqual(self.i.one(c,'SELECT COUNT(*) n FROM auth_template_revisions')['n'],1)
+        # Existing clients remain compatible with {} and subject/body only.
+        self.assertEqual(self.preview('welcome',{}).status_code,200)
+        self.assertEqual(self.preview('welcome',{'subject':'Hi','body':'Old client preview'}).status_code,200)
+        self.assertEqual(self.preview('welcome',{'context':{}}).status_code,200)
+
+    def test_preview_rejects_unknown_fields_types_controls_and_oversize(self):
+        contexts=[None,[],True,'Alex',{'token':'x'},{'preview':True},{'recipient':'outside@example.com'},
+                  {'display_name':None},{'display_name':3},{'display_name':''},{'display_name':'  '},
+                  {'display_name':'A'*121},{'display_name':'Alex\r\nBcc: evil'},{'display_name':'A\x00B'},
+                  {'display_name':'A\x7fB'},{'provider':'Google'},{'provider':'github'},
+                  {'provider':['google']},{'provider':None}]
+        for context in contexts:
+            with self.subTest(context=context):self.assertEqual(self.preview('welcome',{'context':context}).status_code,400)
+        for key in ['token','recipient','action_url','environment','year','expected_revision','actor']:
+            self.assertEqual(self.preview('welcome',{key:'forbidden'}).status_code,400)
+        self.assertEqual(self.preview('welcome',{'subject':'Missing body','context':{}}).status_code,400)
+        self.assertEqual(self.rows(),[])
+        with self.i.engine.connect() as c:
+            self.assertEqual(self.i.one(c,'SELECT COUNT(*) n FROM auth_email_templates')['n'],0)
+            self.assertEqual(self.i.one(c,'SELECT COUNT(*) n FROM auth_template_revisions')['n'],0)
+
+    def _assert_link_path(self,path):
+        email='user@example.com'
+        self.i.verifier=lambda provider,token,nonce:dict(sub=token,email=email,email_verified=True)
+        def social(provider,uid=None):
+            nonce=self.i.challenge('matrix-ip')['nonce'] if provider=='apple' else None
+            return self.i.social(provider,'matrix-'+provider,nonce,None,'matrix-ip',link_user=uid)
+        if path[0]=='email':
+            uid=self.f.verified()['user']['id']
+        else:uid=social(path[0])['user']['id']
+        self.assertEqual(len(self.rows('welcome')),1);self.assertEqual(self.rows('identity-linked'),[])
+        labels={'google':'Google','apple':'Apple','email':'Email and password'}
+        for count,provider in enumerate(path[1:],1):
+            if provider=='email':
+                self.i.link_email(uid,email,'a strong password!','matrix-ip')
+                self.assertEqual(len(self.rows('identity-linked')),count-1)
+                with self.i.engine.connect() as c:
+                    pending=self.i.one(c,"SELECT payload_encrypted FROM auth_email_outbox WHERE template='email-verification' AND status='pending'")
+                token=json.loads(self.i.cipher.decrypt(pending['payload_encrypted'].encode()))['token']
+                self.i.consume(token,'verify')
+                with self.assertRaises(AuthError):self.i.consume(token,'verify')
+                with self.assertRaises(AuthError):self.i.link_email(uid,email,'a strong password!','matrix-ip')
+            else:
+                social(provider,uid);social(provider,uid)
+            linked=self.rows('identity-linked');self.assertEqual(len(linked),count)
+            current=[r for r in linked if self.payload(r)['provider']==provider]
+            self.assertEqual(len(current),1)
+            msg=message(self.i,current[0])
+            self.assertIn(labels[provider],msg['Subject']);self.assertIn(labels[provider],msg.get_body(preferencelist=('plain',)).get_content())
+            self.assertEqual(len(self.rows('welcome')),1)
+            self.assertEqual(self.f.row('SELECT COUNT(*) n FROM app_users')['n'],1)
+        self.assertEqual(set(self.i.methods(uid)['providers']),{'google','apple'})
+        self.assertTrue(self.i.methods(uid)['password_enabled'])
+        self.assertEqual(self.rows('security-alert'),[])
+        messages=[]
+        for _ in range(len(self.rows())):deliver_one(self.i,messages.append)
+        self.assertEqual(sum(labels[path[-1]] in m['Subject'] for m in messages),1)
+        self.assertTrue(all(r['status']=='sent' for r in self.rows()))
+
+    def test_link_path_google_apple_email(self):self._assert_link_path(('google','apple','email'))
+    def test_link_path_google_email_apple(self):self._assert_link_path(('google','email','apple'))
+    def test_link_path_apple_google_email(self):self._assert_link_path(('apple','google','email'))
+    def test_link_path_apple_email_google(self):self._assert_link_path(('apple','email','google'))
+    def test_link_path_email_google_apple(self):self._assert_link_path(('email','google','apple'))
+    def test_link_path_email_apple_google(self):self._assert_link_path(('email','apple','google'))
+
+    def test_apple_without_original_email_adds_password_without_a_late_welcome(self):
+        self.i.verifier=lambda *args:dict(sub='apple-no-email')
+        uid=self.i.social('apple','token',self.i.challenge('ip')['nonce'],None,'ip')['user']['id']
+        self.assertEqual(self.rows(),[])
+        self.i.link_email(uid,'user@example.com','a strong password!','ip')
+        self.i.consume(self.f.action(),'verify')
+        self.assertEqual(self.rows('welcome'),[])
+        self.assertEqual(len(self.rows('identity-linked')),1)
+        row=self.rows('identity-linked')[0]
+        self.assertEqual(row['recipient'],'user@example.com');self.assertEqual(self.payload(row),{'provider':'email'})
+        self.assertEqual(self.rows('security-alert'),[])
 
 if __name__=='__main__': unittest.main()

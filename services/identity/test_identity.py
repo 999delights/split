@@ -45,7 +45,8 @@ class IdentityTest(unittest.TestCase):
   deliver_one(self.identity,messages.append)
   self.assertEqual(parseaddr(messages[0]['From'])[1],'contact@example.com')
   self.assertEqual(parseaddr(messages[0]['From'])[0],{'statz':'STATZ','bliss':'Bliss','sixth':'Sixth','split':'Split Paper'}[self.identity.product])
-  self.assertEqual(messages[0]['Reply-To'],'support@example.com')
+  self.assertEqual(parseaddr(messages[0]['Reply-To'])[1],'support@example.com')
+  self.assertEqual(parseaddr(messages[0]['Reply-To'])[0],parseaddr(messages[0]['From'])[0])
   self.assertEqual(messages[0]['To'],'user@example.com')
  def test_disabled_mail_does_not_deliver_queued_messages(self):
   self.register();self.identity.config['mail_enabled']=False;messages=[]
