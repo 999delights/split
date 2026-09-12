@@ -1,5 +1,4 @@
 """Leased SMTP outbox worker. Never logs recipient, payload, password or action token."""
-import html
 import json
 import smtplib
 import ssl
@@ -8,18 +7,12 @@ from email.utils import formataddr, parseaddr
 from urllib.parse import quote
 from .core import AuthError
 
-TEMPLATES={
- 'email-verification':('Confirm your email','Confirm your email address to activate your account.'),
- 'welcome':('Welcome','Your account is ready. You can now sign in to the app.'),
- 'password-reset':('Reset your password','Use this link to choose a new password. It expires in one hour.'),
- 'password-changed':('Password changed','Your password was changed. If this was not you, contact support.'),
- 'security-alert':('Account security alert','An important security change occurred on your account.'),
-}
+from .templates import TEMPLATES, render
+
 
 
 def message(identity,row):
     payload=json.loads(identity.cipher.decrypt(row['payload_encrypted'].encode()))
-    title,body=TEMPLATES[row['template']]
     brand={'statz':'STATZ','bliss':'Bliss','sixth':'Sixth','split':'Split Paper'}[identity.product]
     url=identity.config['public_url'].rstrip('/')
     action_url=None
@@ -27,21 +20,16 @@ def message(identity,row):
         # Fragment keeps bearer token out of proxy/access logs and Referer headers.
         url += '/action#purpose='+payload['purpose']+'&token='+quote(payload['token'],safe='')
         action_url=url
-        body += '\n\n'+url
     msg=EmailMessage()
-    label='' if identity.config['environment']=='production' else '['+identity.config['environment'].upper()+'] '
-    msg['Subject']=label+brand+' — '+title
+    rendered=render(identity,row['template'],action_url=action_url)
+    msg['Subject']=rendered['subject']
     msg['From']=formataddr((brand, parseaddr(identity.config['smtp_from'])[1]))
     if identity.config.get('smtp_reply_to'):
         msg['Reply-To']=identity.config['smtp_reply_to']
     msg['To']=row['recipient']
     msg['Message-ID']='<'+row['id']+'@'+identity.config['message_domain']+'>'
-    msg.set_content(brand+'\n\n'+body)
-    html_body=html.escape(body).replace('\n','<br>')
-    if action_url:
-        escaped=html.escape(action_url,quote=True)
-        html_body=html_body.replace(escaped,'<a href="'+escaped+'">'+html.escape(title)+'</a>')
-    msg.add_alternative('<!doctype html><html><body><h1>'+html.escape(brand)+'</h1><h2>'+html.escape(title)+'</h2><p>'+html_body+'</p></body></html>',subtype='html')
+    msg.set_content(rendered['text'])
+    msg.add_alternative(rendered['html'],subtype='html')
     return msg
 
 

@@ -1,3 +1,4 @@
+import 'device_identity.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -21,6 +22,7 @@ class AppAuth {
     required this.product,
     required this.baseUrl,
     http.Client? client,
+    this.deviceProvider = DeviceIdentity.current,
     this.googleServerClientId = const String.fromEnvironment(
       'AUTH_GOOGLE_SERVER_CLIENT_ID',
     ),
@@ -30,6 +32,7 @@ class AppAuth {
   }) : client = client ?? http.Client();
   final String product, baseUrl, googleServerClientId, googleIosClientId;
   final http.Client client;
+  final Future<Map<String, dynamic>> Function() deviceProvider;
   final storage = const FlutterSecureStorage();
   Map<String, dynamic>? session;
   Future<String?>? _refreshing;
@@ -102,7 +105,7 @@ class AppAuth {
       await call('/login', {
         'email': email.trim(),
         'password': password,
-        'device': defaultTargetPlatform.name,
+        'device': await deviceProvider(),
       }),
     );
   }
@@ -114,7 +117,9 @@ class AppAuth {
       throw Exception('Google client configuration is missing.');
     final google = GoogleSignIn(
       serverClientId: serverId,
-      clientId: defaultTargetPlatform == TargetPlatform.iOS && iosId.isNotEmpty ? iosId : null,
+      clientId: defaultTargetPlatform == TargetPlatform.iOS && iosId.isNotEmpty
+          ? iosId
+          : null,
     );
     final account = await google.signIn();
     if (account == null) return;
@@ -124,7 +129,7 @@ class AppAuth {
     await save(
       await call('/google', {
         'id_token': credential.idToken,
-        'device': defaultTargetPlatform.name,
+        'device': await deviceProvider(),
       }),
     );
   }
@@ -158,7 +163,7 @@ class AppAuth {
       await call('/apple', {
         'id_token': result.identityToken,
         'nonce': nonce,
-        'device': defaultTargetPlatform.name,
+        'device': await deviceProvider(),
       }),
     );
   }
@@ -178,7 +183,12 @@ class AppAuth {
     if (refresh == null) return null;
     // Transport failures retain the refresh token so an offline device does not lose its account.
     try {
-      await save(await call('/refresh', {'refresh_token': refresh}));
+      await save(
+        await call('/refresh', {
+          'refresh_token': refresh,
+          'device': await deviceProvider(),
+        }),
+      );
       return session!['access_token'] as String;
     } on AppAuthFailure catch (e) {
       if (e.status == 401 || e.code == 'account_unavailable') {

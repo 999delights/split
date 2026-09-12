@@ -49,6 +49,8 @@ class ScopedConnection:
 def create_app(identity):
  app=Flask(__name__);app.config['MAX_CONTENT_LENGTH']=32768
  app.register_blueprint(blueprint(identity),url_prefix='/api/auth')
+ from services.identity.admin_api import blueprint as admin_blueprint
+ app.register_blueprint(admin_blueprint(identity),url_prefix='/api/admin/v1/split')
  @app.errorhandler(AuthError)
  def auth_error(e):return jsonify(error=e.code),e.status
  @app.errorhandler(ValueError)

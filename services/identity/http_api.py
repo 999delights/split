@@ -77,15 +77,35 @@ def blueprint(identity):
     def apple():
         d=body();return jsonify(identity.social('apple',d.get('id_token'),d.get('nonce'),d.get('device'),request.remote_addr))
 
+    @bp.post('/link/google')
+    def link_google():
+        u=user();d=body()
+        return jsonify(identity.social('google',d.get('id_token'),None,None,request.remote_addr,link_user=u['id']))
+
+    @bp.post('/link/apple')
+    def link_apple():
+        u=user();d=body()
+        return jsonify(identity.social('apple',d.get('id_token'),d.get('nonce'),None,request.remote_addr,link_user=u['id']))
+
+    @bp.post('/link/email')
+    def link_email():
+        u=user();d=body()
+        return jsonify(identity.link_email(u['id'],d.get('email'),d.get('password'),request.remote_addr))
+
     @bp.post('/refresh')
     def refresh():
-        token=body().get('refresh_token')
+        d=body();token=d.get('refresh_token')
         if not isinstance(token,str) or len(token)>256:raise AuthError('invalid_session',401)
-        return jsonify(identity.refresh(token))
+        return jsonify(identity.refresh(token,d.get('device')))
 
     @bp.get('/me')
     def me():
         return jsonify(user=user())
+
+    @bp.post('/methods')
+    def methods():
+        u=user()
+        return jsonify(identity.methods(u['id']))
 
     @bp.post('/logout')
     def logout():

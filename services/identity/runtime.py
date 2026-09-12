@@ -38,6 +38,8 @@ def load_config(product, env_file, database_file):
     secret=Path(required('AUTH_SECRET_FILE')).read_text().strip()
     key=Path(required('AUTH_EMAIL_KEY_FILE')).read_text().strip()
     config={'product':product,'environment':environment,'secret':secret,'email_key':key,
+        'admin_read_token_file':values.get('AUTH_ADMIN_READ_TOKEN_FILE'),
+        'admin_write_token_file':values.get('AUTH_ADMIN_WRITE_TOKEN_FILE'),
         'public_url':required('AUTH_PUBLIC_URL'),'google_client_ids':required('GOOGLE_CLIENT_IDS').split(','),
         'apple_client_ids':required('APPLE_CLIENT_IDS').split(','),
         'mail_enabled':values.get('MAIL_ENABLED')=='true','smtp_from':required('SMTP_FROM'),

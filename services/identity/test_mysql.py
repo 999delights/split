@@ -50,6 +50,8 @@ def main():
   delivered=[]
   assert deliver_one(identity,delivered.append)
   assert delivered
+  from .contract_mysql_check import check_contract
+  check_contract(identity,session['user']['id'])
   print('MySQL identity passed: verification, login, concurrent refresh replay, revocation and leased outbox.')
  finally:engine.dispose()
 

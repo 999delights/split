@@ -26,6 +26,8 @@ class IdentityTest(unittest.TestCase):
     statement=re.sub(r',?\s*(?:UNIQUE KEY \w+\(([^)]+)\)|INDEX \w+\([^)]+\))',lambda m:', UNIQUE('+m[1]+')' if m[1] else '',statement)
     statement=statement.replace('BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY','INTEGER PRIMARY KEY AUTOINCREMENT')
     c.execute(text(statement))
+  from .fixture_contract import extend_fixture
+  extend_fixture(self.engine,self.identity.product)
  def tearDown(self):self.engine.dispose()
  def row(self,sql):
   with self.engine.connect() as c:return c.execute(text(sql)).mappings().first()

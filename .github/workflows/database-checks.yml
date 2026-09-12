@@ -36,7 +36,7 @@ jobs:
       - run: node --check infra/pm2/ecosystem.config.js
       - run: pip install -r infra/db/requirements.txt
       - run: pip install -r services/identity/requirements.txt
-      - run: python -m unittest services.identity.test_identity services.identity.test_http services.identity.test_provider -v
+      - run: python -m unittest services.identity.test_identity services.identity.test_http services.identity.test_provider services.identity.test_account_contract -v
       - run: python -m unittest services.identity.test_provision services.identity.test_deployment_check -v
       - run: python -m unittest services.backend.test_mysql_app -v
       - run: python infra/db/test_db.py

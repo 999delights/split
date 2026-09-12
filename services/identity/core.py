@@ -158,14 +158,20 @@ class Identity:
                 raise AuthError('invalid_or_expired_link')
             uid = row['user_id']
             self.lock_user(c, uid)
+            if self.user(c,uid)['status']!='active': raise AuthError('account_unavailable',403)
             self.execute(c, 'UPDATE auth_actions SET consumed_at=:n WHERE token_hash=:h',n=self.now(),h=digest(token))
             if purpose == 'verify':
-                self.execute(c, 'UPDATE auth_email_addresses SET verified_at=:n WHERE user_id=:u AND email=:e',n=self.now(),u=uid,e=row['email'])
-                self.enqueue(c,uid,row['email'],'welcome',{},'welcome:'+uid)
+                self.execute(c, 'UPDATE auth_email_addresses SET verified_at=:n,confirmed_at=:n WHERE user_id=:u AND email=:e',n=self.now(),u=uid,e=row['email'])
+                if row.get('pending_password_hash'):
+                    if self.one(c,'SELECT user_id FROM auth_passwords WHERE user_id=:u',u=uid): raise AuthError('password_already_exists',409)
+                    self.execute(c,'INSERT INTO auth_passwords(user_id,password_hash,changed_at) VALUES(:u,:h,:n)',u=uid,h=row['pending_password_hash'],n=self.now())
+                if not self.one(c,'SELECT id FROM auth_email_outbox WHERE dedupe_key=:d',d='welcome:'+uid):
+                    self.enqueue(c,uid,row['email'],'welcome',{},'welcome:'+uid)
             else:
                 self.execute(c, 'UPDATE auth_passwords SET password_hash=:h,changed_at=:n WHERE user_id=:u',h=new_hash,n=self.now(),u=uid)
                 self.execute(c, 'UPDATE auth_sessions SET revoked_at=:n WHERE user_id=:u AND revoked_at IS NULL', n=self.now(),u=uid)
                 self.enqueue(c,uid,row['email'],'password-changed',{},'password:'+digest(token))
+            self.execute(c,'UPDATE auth_actions SET pending_password_hash=NULL WHERE token_hash=:h',h=digest(token))
             self.event(c,uid,'email_verified' if purpose=='verify' else 'password_changed','email')
         return {'ok': True}
 
@@ -188,14 +194,20 @@ class Identity:
             self.lock_user(c,row['user_id'])
             return self.issue(c,row['user_id'],device,'email')
 
-    def issue(self,c,uid,device,provider,family=None):
+    def issue(self,c,uid,device,provider,family=None,device_id=None):
         user = self.user(c,uid)
         if not user or user['status']!='active':
             raise AuthError('account_unavailable',403)
+        if family is None:
+            logged_at=datetime.fromtimestamp(self.now(),timezone.utc).replace(tzinfo=None)
+            self.execute(c,f'UPDATE app_users SET last_login_at=:t,last_login_provider=:p WHERE {self.user_key}=:u',t=logged_at,p=provider,u=uid)
+            if provider in PROVIDERS:
+                self.execute(c,'UPDATE auth_identities SET last_login_at=:t WHERE user_id=:u AND provider=:p',t=logged_at,u=uid,p=provider)
+            device_id,device=self.record_device(c,uid,device)
         token = secrets.token_urlsafe(48)
         sid = str(uuid.uuid4())
-        self.execute(c, '''INSERT INTO auth_sessions(id,user_id,token_hash,family_id,device_label,provider,expires_at,created_at)
-            VALUES(:id,:u,:h,:f,:d,:p,:x,:n)''',id=sid,u=uid,h=digest(token),f=family or sid,
+        self.execute(c, '''INSERT INTO auth_sessions(id,user_id,token_hash,family_id,device_label,provider,expires_at,created_at,device_id)
+            VALUES(:id,:u,:h,:f,:d,:p,:x,:n,:di)''',di=device_id,id=sid,u=uid,h=digest(token),f=family or sid,
             d=str(device or 'Mobile')[:120],p=provider,x=self.now()+30*86400,n=self.now())
         claims={'sub':uid,'sid':sid,'typ':'access','iss':self.issuer,'aud':self.audience,'iat':self.now(),'exp':self.now()+600}
         if self.product=='statz':
@@ -205,7 +217,7 @@ class Identity:
         return {'access_token':jwt.encode(claims,self.secret,algorithm='HS256'),'refresh_token':token,
                 'expires_in':600,'user':dict(user),'provider':provider}
 
-    def refresh(self, token):
+    def refresh(self, token, device=None):
         replay=False
         with self.engine.begin() as c:
             # Lock the user first so concurrent refreshes cannot create two descendants.
@@ -221,7 +233,15 @@ class Identity:
                 raise AuthError('invalid_session',401)
             else:
                 self.execute(c,'UPDATE auth_sessions SET consumed_at=:n WHERE id=:s',n=self.now(),s=row['id'])
-                result=self.issue(c,row['user_id'],row['device_label'],row['provider'],row['family_id'])
+                device_id=row['device_id']
+                if device is not None:
+                    device_id,_=self.record_device(c,row['user_id'],device)
+                    if row['device_id'] and device_id!=row['device_id']:
+                        raise AuthError('device_mismatch',401)
+                if device_id:
+                    self.execute(c,'UPDATE user_devices SET last_seen_at=:t WHERE id=:d AND user_id=:u',
+                        t=datetime.fromtimestamp(self.now(),timezone.utc).replace(tzinfo=None),d=device_id,u=row['user_id'])
+                result=self.issue(c,row['user_id'],row['device_label'],row['provider'],row['family_id'],device_id)
         if replay: raise AuthError('session_reuse_detected',401)
         return result
 
@@ -268,7 +288,7 @@ class Identity:
         except AuthError: raise
         except Exception: raise AuthError('invalid_provider_token',401) from None
 
-    def social(self,provider,token,nonce,device,ip):
+    def social(self,provider,token,nonce,device,ip,link_user=None):
         self.throttle('social',ip)
         if provider not in PROVIDERS or not isinstance(token,str) or len(token)>16384:
             raise AuthError('invalid_provider_token',401)
@@ -276,27 +296,97 @@ class Identity:
         subject=claims.get('sub')
         if not isinstance(subject,str) or not 1<=len(subject)<=255: raise AuthError('invalid_provider_token',401)
         verified=claims.get('email_verified') is True or claims.get('email_verified') == 'true'
-        if provider=='google' and (not verified or not claims.get('email')):
-            raise AuthError('google_email_not_verified',401)
+        if provider=='google' and not verified: raise AuthError('invalid_provider_token',401)
         email=self.email(claims['email']) if claims.get('email') and verified else None
         with self.engine.begin() as c:
             if provider=='apple':
                 changed=self.execute(c,'UPDATE auth_challenges SET consumed_at=:n WHERE nonce_hash=:h AND consumed_at IS NULL AND expires_at>:n',n=self.now(),h=digest(nonce or '')).rowcount
                 if changed!=1:raise AuthError('invalid_nonce',401)
             row=self.one(c,'SELECT user_id FROM auth_identities WHERE provider=:p AND subject=:s',p=provider,s=subject)
+            if row and link_user and row['user_id']!=link_user:
+                raise AuthError('identity_already_linked',409)
             if row:
                 uid=row['user_id']
                 self.lock_user(c,uid)
+                if email:
+                    address=self.one(c,'SELECT user_id FROM auth_email_addresses WHERE email=:e',e=email)
+                    if address and address['user_id']!=uid: raise AuthError('identity_already_linked',409)
+                    if not address:
+                        self.execute(c,'INSERT INTO auth_email_addresses(user_id,email,verified_at,verification_source) VALUES(:u,:e,:n,:p)',u=uid,e=email,n=self.now(),p=provider)
+                    else:
+                        self.execute(c,'UPDATE auth_email_addresses SET verification_source=CASE WHEN verified_at IS NULL THEN :p ELSE verification_source END,verified_at=COALESCE(verified_at,:n) WHERE user_id=:u AND email=:e',p=provider,u=uid,e=email,n=self.now())
             else:
                 # Do not attach a new identity by matching an email address.
                 existing=self.one(c,'SELECT email FROM app_users WHERE LOWER(email)=:e',e=email) if email else None
-                if existing:raise AuthError('sign_in_to_existing_account_to_link',409)
-                uid=self.create_user(c,email,claims.get('name'))
+                email_owner=self.one(c,'SELECT user_id FROM auth_email_addresses WHERE email=:e',e=email) if email else None
+                if link_user:
+                    self.lock_user(c,link_user)
+                    linked=self.user(c,link_user)
+                    if not linked or linked['status']!='active': raise AuthError('account_unavailable',403)
+                    if (email_owner and email_owner['user_id']!=link_user) or (existing and linked['email']!=email):
+                        raise AuthError('identity_already_linked',409)
+                    uid=link_user
+                else:
+                    if existing or email_owner:raise AuthError('sign_in_to_existing_account_to_link',409)
+                    uid=self.create_user(c,email,claims.get('name'))
                 extra_id='id,' if self.product!='statz' else ''
                 extra_value=':id,' if extra_id else ''
-                self.execute(c,f'INSERT INTO auth_identities({extra_id}provider,subject,user_id,email) VALUES({extra_value}:p,:s,:u,:e)',id=str(uuid.uuid4()),p=provider,s=subject,u=uid,e=email)
-                if email:
+                self.execute(c,f'INSERT INTO auth_identities({extra_id}provider,subject,user_id,email,created_at) VALUES({extra_value}:p,:s,:u,:e,:t)',id=str(uuid.uuid4()),p=provider,s=subject,u=uid,e=email,t=datetime.fromtimestamp(self.now(),timezone.utc).replace(tzinfo=None))
+                if email and not self.one(c,'SELECT user_id FROM auth_email_addresses WHERE email=:e',e=email):
                     self.execute(c,'INSERT INTO auth_email_addresses(user_id,email,verified_at,verification_source) VALUES(:u,:e,:n,:p)',u=uid,e=email,n=self.now(),p=provider)
-                    self.enqueue(c,uid,email,'welcome',{},'welcome:'+uid)
-                self.event(c,uid,'registered',provider)
+                    if not link_user: self.enqueue(c,uid,email,'welcome',{},'welcome:'+uid)
+                if not link_user: self.event(c,uid,'registered',provider)
+            if email:
+                self.execute(c,'UPDATE auth_email_addresses SET verification_source=CASE WHEN verified_at IS NULL THEN :p ELSE verification_source END,verified_at=COALESCE(verified_at,:n) WHERE user_id=:u AND email=:e',p=provider,n=self.now(),u=uid,e=email)
+            self.execute(c,'UPDATE auth_identities SET email=COALESCE(:e,email),email_verified=CASE WHEN :e IS NULL THEN email_verified ELSE :v END WHERE user_id=:u AND provider=:p AND subject=:s',e=email,v=verified,u=uid,p=provider,s=subject)
+            if link_user:
+                self.event(c,uid,'provider_linked',provider)
+                return {'ok':True}
             return self.issue(c,uid,device,provider)
+
+    def record_device(self,c,uid,device):
+        if not isinstance(device,dict): return None, str(device or 'Legacy mobile')[:120]
+        try: installation=str(uuid.UUID(device.get('id','')))
+        except (ValueError,TypeError,AttributeError): raise AuthError('invalid_device')
+        platform=device.get('platform')
+        if platform not in ('ios','android','web','macos','windows','linux'): raise AuthError('invalid_device')
+        def field(key,limit):
+            value=device.get(key,'')
+            if not isinstance(value,str) or len(value)>limit: raise AuthError('invalid_device')
+            return value
+        name=field('name',120) or platform
+        model=field('model',120);version=field('app_version',40)
+        did=str(uuid.uuid5(uuid.NAMESPACE_URL,uid+':'+installation))
+        now=datetime.fromtimestamp(self.now(),timezone.utc).replace(tzinfo=None)
+        existing=self.one(c,'SELECT id FROM user_devices WHERE id=:d',d=did)
+        params=dict(d=did,u=uid,i=installation,p=platform,n=name,m=model,v=version,t=now)
+        if existing:
+            self.execute(c,'UPDATE user_devices SET platform=:p,name=:n,model=:m,app_version=:v,last_seen_at=:t,revoked_at=NULL WHERE id=:d AND user_id=:u',**params)
+        else:
+            self.execute(c,'INSERT INTO user_devices(id,user_id,installation_id,platform,name,model,app_version,last_seen_at) VALUES(:d,:u,:i,:p,:n,:m,:v,:t)',**params)
+        return did,name
+
+
+    def link_email(self,uid,email,password,ip):
+        email=self.email(email);self.throttle('link-email',ip,email)
+        hashed=PH.hash(self.password(password))
+        with self.engine.begin() as c:
+            self.lock_user(c,uid)
+            if self.one(c,'SELECT user_id FROM auth_passwords WHERE user_id=:u',u=uid):
+                raise AuthError('password_already_exists',409)
+            owner=self.one(c,'SELECT user_id FROM auth_email_addresses WHERE email=:e',e=email)
+            legacy=self.one(c,f'SELECT {self.user_key} FROM app_users WHERE LOWER(email)=:e AND {self.user_key}<>:u',e=email,u=uid)
+            if legacy or (owner and owner['user_id']!=uid): raise AuthError('identity_already_linked',409)
+            if not owner:
+                self.execute(c,"INSERT INTO auth_email_addresses(user_id,email,verification_source) VALUES(:u,:e,'email')",u=uid,e=email)
+            self.action(c,uid,email,'verify')
+            self.execute(c,"UPDATE auth_actions SET pending_password_hash=:h WHERE user_id=:u AND purpose='verify' AND consumed_at IS NULL",h=hashed,u=uid)
+        return {'message':'Check your email to connect email sign-in.'}
+
+
+    def methods(self, uid):
+        with self.engine.connect() as c:
+            providers = [r['provider'] for r in self.execute(c, "SELECT DISTINCT provider FROM auth_identities WHERE user_id=:u AND provider IN ('google','apple')", u=uid).mappings()]
+            emails = [dict(email=r['email'], verified=r['verified_at'] is not None) for r in self.execute(c, 'SELECT email,verified_at FROM auth_email_addresses WHERE user_id=:u', u=uid).mappings()]
+            password = bool(self.one(c, 'SELECT user_id FROM auth_passwords WHERE user_id=:u', u=uid))
+        return dict(providers=providers, emails=emails, password_enabled=password)
