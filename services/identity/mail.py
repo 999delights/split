@@ -21,7 +21,11 @@ def message(identity,row):
         url += '/action#purpose='+payload['purpose']+'&token='+quote(payload['token'],safe='')
         action_url=url
     msg=EmailMessage()
-    rendered=render(identity,row['template'],action_url=action_url)
+    with identity.engine.connect() as c:
+        account=identity.user(c,row['user_id'])
+    rendered=render(identity,row['template'],action_url=action_url,context={
+        'display_name':account['display_name'] if account else None,
+        'provider':payload.get('provider')})
     msg['Subject']=rendered['subject']
     msg['From']=formataddr((brand, parseaddr(identity.config['smtp_from'])[1]))
     if identity.config.get('smtp_reply_to'):

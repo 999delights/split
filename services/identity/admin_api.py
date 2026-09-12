@@ -148,5 +148,5 @@ def blueprint(identity):
         data=request.get_json(silent=True)
         if not isinstance(data,dict): raise AuthError('invalid_template')
         action='https://preview.invalid/confirmation' if key in ('email-verification','password-reset') else None
-        return jsonify(preview=templates.render(identity,key,data or None,action),sends_email=False)
+        return jsonify(preview=templates.render(identity,key,data or None,action,context={'display_name':'Alex','provider':'google','preview':True}),sends_email=False)
     return bp

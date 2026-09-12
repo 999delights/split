@@ -85,7 +85,7 @@ class AccountContractTest(unittest.TestCase):
   with self.i.engine.begin() as c:self.i.execute(c,'UPDATE auth_sessions SET expires_at=0')
   u=self.api('/users/'+uid).json['user'];self.assertEqual(u['active_sessions'],0);self.assertEqual(u['sessions'][0]['status'],'expired')
  def test_templates_scopes_revision_preview_and_delivery(self):
-  items=self.api('/email-templates').json['templates'];self.assertEqual(len(items),5)
+  items=self.api('/email-templates').json['templates'];self.assertEqual(len(items),6)
   self.assertFalse(next(x for x in items if x['key']=='security-alert')['automatically_triggered'])
   data=dict(subject='Hello {{app_name}}',body='A <b>safe</b> welcome',expected_revision=0,actor='admin-test')
   self.assertEqual(self.api('/email-templates/welcome','PATCH',data).status_code,401)

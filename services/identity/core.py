@@ -112,6 +112,20 @@ class Identity:
             VALUES(:id,:u,:r,:t,:p,:d,'pending',0,:n,:n)''', id=str(uuid.uuid4()), u=uid, r=email,
             t=template, p=self.cipher.encrypt(json.dumps(payload).encode()).decode(), d=key, n=self.now())
 
+    def notify_identity_linked(self, c, uid, provider, identity_key):
+        # Called under the account lock, in the same transaction as the new link.
+        # Notify an existing verified account contact; never an unverified address.
+        user = self.user(c, uid)
+        contact = self.one(c, '''SELECT email FROM auth_email_addresses
+            WHERE user_id=:u AND verified_at IS NOT NULL
+            ORDER BY CASE WHEN email=:e THEN 0 ELSE 1 END, verified_at, email LIMIT 1''',
+            u=uid, e=user['email'])
+        if not contact:
+            return
+        key = 'identity-linked:' + uid + ':' + provider + ':' + digest(identity_key)
+        if not self.one(c, 'SELECT id FROM auth_email_outbox WHERE dedupe_key=:d', d=key):
+            self.enqueue(c, uid, contact['email'], 'identity-linked', {'provider': provider}, key)
+
     def action(self, c, uid, email, purpose):
         # Supersede previous links; no bearer action token is stored in plaintext.
         self.execute(c, 'UPDATE auth_actions SET consumed_at=:n WHERE user_id=:u AND purpose=:p AND consumed_at IS NULL', n=self.now(),u=uid,p=purpose)
@@ -165,6 +179,8 @@ class Identity:
                 if row.get('pending_password_hash'):
                     if self.one(c,'SELECT user_id FROM auth_passwords WHERE user_id=:u',u=uid): raise AuthError('password_already_exists',409)
                     self.execute(c,'INSERT INTO auth_passwords(user_id,password_hash,changed_at) VALUES(:u,:h,:n)',u=uid,h=row['pending_password_hash'],n=self.now())
+                    self.event(c,uid,'provider_linked','email')
+                    self.notify_identity_linked(c,uid,'email',uid)
                 if not self.one(c,'SELECT id FROM auth_email_outbox WHERE dedupe_key=:d',d='welcome:'+uid):
                     self.enqueue(c,uid,row['email'],'welcome',{},'welcome:'+uid)
             else:
@@ -303,6 +319,7 @@ class Identity:
                 changed=self.execute(c,'UPDATE auth_challenges SET consumed_at=:n WHERE nonce_hash=:h AND consumed_at IS NULL AND expires_at>:n',n=self.now(),h=digest(nonce or '')).rowcount
                 if changed!=1:raise AuthError('invalid_nonce',401)
             row=self.one(c,'SELECT user_id FROM auth_identities WHERE provider=:p AND subject=:s',p=provider,s=subject)
+            new_identity = row is None
             if row and link_user and row['user_id']!=link_user:
                 raise AuthError('identity_already_linked',409)
             if row:
@@ -340,7 +357,9 @@ class Identity:
                 self.execute(c,'UPDATE auth_email_addresses SET verification_source=CASE WHEN verified_at IS NULL THEN :p ELSE verification_source END,verified_at=COALESCE(verified_at,:n) WHERE user_id=:u AND email=:e',p=provider,n=self.now(),u=uid,e=email)
             self.execute(c,'UPDATE auth_identities SET email=COALESCE(:e,email),email_verified=CASE WHEN :e IS NULL THEN email_verified ELSE :v END WHERE user_id=:u AND provider=:p AND subject=:s',e=email,v=verified,u=uid,p=provider,s=subject)
             if link_user:
-                self.event(c,uid,'provider_linked',provider)
+                if new_identity:
+                    self.event(c,uid,'provider_linked',provider)
+                    self.notify_identity_linked(c,uid,provider,subject)
                 return {'ok':True}
             return self.issue(c,uid,device,provider)
 

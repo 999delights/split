@@ -85,10 +85,10 @@ Outbox: recipient, template, status, attempts, next_attempt_at, created_at, sent
 error_code. `sent` means SMTP accepted the message, not inbox delivery/opening.
 No real email is sent by the Admin read or preview endpoints.
 
-## Template editor connected to the actual mail worker
+## Backend-owned branded templates connected to the actual mail worker
 
-Keys: welcome, email-verification, password-reset, password-changed, security-alert.
-The first four have active application triggers. security-alert remains explicitly
+Keys: welcome, email-verification, password-reset, password-changed, identity-linked,
+security-alert. The first five have active application triggers. security-alert remains explicitly
 marked reserved / automatically_triggered=false; no delivery claim for this template.
 
 POST /email-templates/{key}/preview
@@ -104,7 +104,10 @@ must match the latest revision; stale edits fail 409. Each saved version has an
 audit record. Restore by submitting previous content with the CURRENT expected_revision.
 Templates are stored only inside that product/environment database.
 
-Subject/body are TEXT, not arbitrary HTML. The only optional variable is {{app_name}}.
+Subject/body are TEXT, not arbitrary HTML. Optional variables are {{app_name}} and {{display_name}}; identity-linked also
+accepts {{provider}} (Google, Apple, or Email and password). The variables array
+in each template response advertises these additions; existing app_name-only
+content remains valid. Preview uses a fictional Alex and Google, never account data.
 Unknown placeholders, empty/oversized fields and newline headers are rejected.
 HTML is generated with escaping. Verification/reset URLs are always constructed by
 the backend and appended separately: template editing cannot remove or change the
@@ -112,6 +115,15 @@ security token, purpose, destination or lifetime. Subject includes the app brand
 non-production environment prefix. The SMTP worker resolves the effective template
 at send time, so edits affect unsent/retrying messages as well as future messages.
 Brand sender and Reply-To remain external settings, not editable in this endpoint.
+
+The six code defaults and palette live in services/identity/email_brand.py; the
+responsive, inline-styled table layout is rendered by email_layout.py. Plain text
+and HTML use the same effective copy and context. No remote images, fonts, scripts
+or tracking are loaded. Existing database overrides and revision history are kept;
+a render/list/preview never writes a revision. The new identity-linked key is a
+code default at revision 0, supported by the existing VARCHAR key columns.
+No schema migration, template seed/overwrite, or retrospective notification is needed.
+Admin uses its existing Email Templates → Applications page; no new editor is required.
 
 SMTP continues using contact@dddcreate.com and app-specific Reply-To aliases. No
 changes to website email settings, allowlists, or production sending were made.
@@ -125,6 +137,15 @@ proof; Apple requires the single-use /challenge nonce. Matching an email never
 silently merges accounts. Existing provider ownership cannot be taken by another
 account. Email-password linking activates only after the confirmation link is consumed.
 No second welcome is enqueued for an already welcomed social account.
+identity-linked is queued transactionally only for a new explicit Google/Apple
+association or successful email-password confirmation, not for ordinary login,
+registration, failed proof, or a repeated linking request. The unique outbox key
+deduplicates each identity; social subjects are hashed in that key. Email linking
+uses one stable key for the account password credential. The primary verified
+account email is preferred; otherwise an existing verified address is selected.
+If there is no verified address, no email is queued and no recipient is invented.
+Failures roll back both the new link and its queued notification. security-alert
+remains reserved without any automatic enqueue path.
 POST /api/auth/refresh also accepts optional structured device metadata. Existing
 string-only clients remain compatible. A known session cannot be moved to another
 installation ID during refresh. Refresh metadata does not change last login time.
@@ -148,3 +169,22 @@ for Users and Email Templates. Check /contract and endpoint authorization before
 wiring Admin. Test previews first. Report concrete missing data from actual DEV rows;
 do not mutate accounts or merge users to make the UI look complete. App users must
 use an updated mobile build and login/refresh to populate new device metadata.
+
+## Branded email validation (DEV)
+
+Run `python -m unittest services.identity.test_email_templates
+services.identity.test_account_contract` (on one command line). Tests use disposable
+fixtures and intercepted senders; they do not call SMTP. CI also checks transactional
+identity-linked deduplication and rollback on a fresh MySQL database.
+
+Preview every key with the existing read-only service credential. Confirmation and
+reset previews contain only https://preview.invalid/confirmation and sends_email=false.
+Template source, preview, history and logs never contain real action tokens or account
+credentials. At delivery, the existing worker alone generates the one-time action URL
+from AUTH_PUBLIC_URL; the opaque token is confined to the URL fragment (not visible
+HTML text, query parameters or a template variable). Only that backend-owned URL can
+be rendered as a verification/reset CTA. Do not log or persist rendered real messages.
+
+No live registration, reset or linking request is needed to validate these designs.
+Keep SMTP secrets, per-app Reply-To, DEV allowlists and runtime controls on Windows.
+A DEV code push uses the existing workflow; staging and production are untouched.
