@@ -6,7 +6,7 @@ for (const name of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURITY', 'SMTP_USER', 'SMT
   if (!process.env[name]) throw new Error(`Missing required environment variable: ${name}`);
 }
 // TD_RUNTIME_ROOT: config, tools and venvs outside Git (see infra/windows/deploy-development.ps1).
-const runtimeRoot = process.env.TD_RUNTIME_ROOT || 'D:\\app-runtime';
+const runtimeRoot = process.env.TD_RUNTIME_ROOT || 'D:\\runtime';
 const configDir = path.win32.join(runtimeRoot, 'config', 'development');
 module.exports = { apps: [{
   name: 'split-server',
