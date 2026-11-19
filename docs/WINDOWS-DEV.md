@@ -8,15 +8,15 @@ at `/api/v1`. No Firebase Auth or legacy preview token is used in this runtime.
 ## Windows contract
 
 - Branch: dev, repository 999delights/split.
-- Requested runtime checkout: `D:\network_share\apps\development\split`.
+- Requested runtime checkout: `D:\apps\split\dev`.
   Windows confirmed the spelling with `network\_share` does not exist. Preserve
   the existing checkout; no automated relocation or deletion is performed.
 - PM2: split-server, loopback port **3400** (deployment checks port ownership).
-- Virtualenv: `D:\app-runtime\venvs\development\split`.
-- Config: `D:\app-runtime\config\development\split.database.env` and
+- Virtualenv: `D:\runtime\venvs\development\split`.
+- Config: `D:\runtime\config\development\split.database.env` and
   `split.identity.env` (template: services/identity/split.identity.env.example).
 - MySQL must be `dev_split_db`; APP_DB_* includes separate migration credentials.
-- SMTP injected using `D:\app-runtime\tools\import_smtp_env.ps1 -Environment development`.
+- SMTP injected using `D:\runtime\tools\import_smtp_env.ps1 -Environment development`.
   All five SMTP variables are explicitly forwarded to PM2, never logged.
 - Signing/email keys remain in the external development secrets directory with
   restrictive Windows ACLs. Existing provision.py can generate fresh keys locally

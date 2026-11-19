@@ -72,7 +72,7 @@ def inspect(product, root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--product', choices=PRODUCTS, required=True)
-    runtime_root = os.environ.get('TD_RUNTIME_ROOT', r'D:\app-runtime')
+    runtime_root = os.environ.get('TD_RUNTIME_ROOT', r'D:\runtime')
     parser.add_argument('--config-root', default=os.path.join(runtime_root, 'config', 'development'))
     args = parser.parse_args()
     try:

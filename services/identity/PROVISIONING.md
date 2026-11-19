@@ -1,8 +1,8 @@
 # Development identity provisioning
 
 Windows owns SMTP secrets outside Git:
-- Development: `D:\app-runtime\secrets\development\dddcreate.smtp.env`
-- Staging: `D:\app-runtime\secrets\staging\dddcreate.smtp.env`
+- Development: `D:\secrets\apps\development\dddcreate.smtp.env`
+- Staging: `D:\secrets\apps\staging\dddcreate.smtp.env`
 
 Deploy infrastructure injects SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD into each backend process. SMTP_SECURITY is `ssl` for implicit TLS (typically 465), or `starttls` (typically 587); default is starttls. The runtime reads these values from the process environment only. It does not read the site's MAIL_* source or copy SMTP credentials into per-product files. Staging is documented only; no staging migration or deployment is enabled here.
 
@@ -19,7 +19,7 @@ Never put SMTP passwords into command arguments, Git, logs, or application files
 The development deploy shell must run the external loader before starting PM2:
 
 ```powershell
-. 'D:\app-runtime\tools\import_smtp_env.ps1' -Environment development
+. 'D:\runtime\tools\import_smtp_env.ps1' -Environment development
 ```
 
 Start/update the backend with `--update-env` and keep `pm2 save` after successful health checks. The loader and SMTP secret remain outside Git. Do not log process environments or PM2 environment dumps. This configures SMTP transport only; identity configuration and migrations remain separate prerequisites.
