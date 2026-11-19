@@ -10,14 +10,14 @@ permissions:
   contents: read
 jobs:
   fresh-mysql:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     services:
       mysql:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: isolated-ci-password
           MYSQL_DATABASE: app_migration_test
-        ports: ['3306:3306']
+        ports: ['3306']
         options: >-
           --health-cmd="mysqladmin ping -h localhost -pisolated-ci-password"
           --health-interval=5s --health-timeout=5s --health-retries=20
@@ -43,11 +43,13 @@ jobs:
       - run: python infra/db/test_mysql.py
         env:
           MYSQL_TEST_DATABASE: app_migration_test
+          MYSQL_TEST_PORT: ${{ job.services.mysql.ports['3306'] }}
           MYSQL_TEST_USER: root
           MYSQL_TEST_PASSWORD: isolated-ci-password
       - run: python -m services.identity.test_mysql
         env:
           IDENTITY_TEST_PRODUCT: split
           MYSQL_TEST_DATABASE: app_migration_test
+          MYSQL_TEST_PORT: ${{ job.services.mysql.ports['3306'] }}
           MYSQL_TEST_USER: root
           MYSQL_TEST_PASSWORD: isolated-ci-password
