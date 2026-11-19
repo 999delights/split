@@ -1,11 +1,17 @@
 param(
     [ValidateRange(1024,65535)][int]$Port = 3400,
     [Parameter(Mandatory=$true)][ValidatePattern('^[a-f0-9]{40}$')][string]$ExpectedCommit,
-    [string]$DeployRoot = 'D:\network_share\apps\development\split',
+    [string]$DeployRoot = '',
     [switch]$ApplyMigrations,
     [switch]$BindRecoveredMembers
 )
 $ErrorActionPreference = 'Stop'
+# Machine layout comes from settings, so the folders can move without code changes:
+# SPLIT_DEV_ROOT: the dev checkout; TD_RUNTIME_ROOT: config, tools and venvs outside Git;
+# TD_DATA_TRANSFER_ROOT: one-time legacy imports.
+$RuntimeRoot = if ($env:TD_RUNTIME_ROOT) { $env:TD_RUNTIME_ROOT } else { 'D:\app-runtime' }
+$DataTransferRoot = if ($env:TD_DATA_TRANSFER_ROOT) { $env:TD_DATA_TRANSFER_ROOT } else { 'D:\network_share\apps\data-transfer' }
+if (-not $DeployRoot) { $DeployRoot = if ($env:SPLIT_DEV_ROOT) { $env:SPLIT_DEV_ROOT } else { 'D:\network_share\apps\development\split' } }
 function Invoke-Checked {
     param([string]$FilePath, [string[]]$Arguments)
     & $FilePath @Arguments
@@ -17,13 +23,14 @@ if ((git -C $repoRoot branch --show-current).Trim() -ne 'dev') { throw 'Split ch
 if (git -C $repoRoot status --porcelain) { throw 'Split checkout has local changes' }
 Invoke-Checked 'git' @('-C', $repoRoot, 'pull', '--ff-only', 'origin', 'dev')
 if ((git -C $repoRoot rev-parse HEAD).Trim() -ne $ExpectedCommit) { throw 'Checkout differs from the tested commit' }
-$database = 'D:\app-runtime\config\development\split.database.env'
-$identity = 'D:\app-runtime\config\development\split.identity.env'
+$database = Join-Path $RuntimeRoot 'config\development\split.database.env'
+$identity = Join-Path $RuntimeRoot 'config\development\split.identity.env'
 if (-not (Test-Path $database) -or -not (Test-Path $identity)) { throw 'Split development configuration missing' }
-. 'D:\app-runtime\tools\import_smtp_env.ps1' -Environment development
-$python = 'D:\app-runtime\venvs\development\split\Scripts\python.exe'
+. (Join-Path $RuntimeRoot 'tools\import_smtp_env.ps1') -Environment development
+$venv = Join-Path $RuntimeRoot 'venvs\development\split'
+$python = Join-Path $venv 'Scripts\python.exe'
 if (-not (Test-Path $python)) {
-    Invoke-Checked 'python' @('-m', 'venv', 'D:\app-runtime\venvs\development\split')
+    Invoke-Checked 'python' @('-m', 'venv', $venv)
 }
 Push-Location $repoRoot
 try {
@@ -34,11 +41,11 @@ try {
     Invoke-Checked $python @('infra\db\db.py', 'db:status', '--env-file', $database)
     if ($BindRecoveredMembers -and -not $ApplyMigrations) { throw 'Binding repair requires backup/migration mode' }
     if ($ApplyMigrations) {
-        Invoke-Checked $python @('D:\app-runtime\tools\backup_app_database.py', '--environment', 'development', '--app', 'split')
+        Invoke-Checked $python @((Join-Path $RuntimeRoot 'tools\backup_app_database.py'), '--environment', 'development', '--app', 'split')
         Invoke-Checked $python @('infra\db\db.py', 'db:migrate', '--env-file', $database)
     }
     if ($BindRecoveredMembers) {
-        $source = 'D:\network_share\apps\data-transfer\split-development-legacy-49cff069\imported.db'
+        $source = Join-Path $DataTransferRoot 'split-development-legacy-49cff069\imported.db'
         $hash = '49cff069aeaa7ae2850a47f6da8678c0289a78f56d82a04e80c6a4705a9e4ac4'
         Invoke-Checked $python @('scripts\bind_recovered_members.py', '--source', $source, '--sha256', $hash, '--database-file', $database)
         Invoke-Checked $python @('scripts\bind_recovered_members.py', '--source', $source, '--sha256', $hash, '--database-file', $database, '--apply')

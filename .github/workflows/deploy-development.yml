@@ -50,4 +50,4 @@ jobs:
           BIND_RECOVERED: ${{ inputs.bind_recovered_members || false }}
           APPLY_MIGRATIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.apply_migrations || false }}
         run: |
-          & .\infra\windows\deploy-development.ps1 -DeployRoot 'D:\network_share\apps\development\split' -Port ([int]$env:DEPLOY_PORT) -ExpectedCommit $env:DEPLOY_COMMIT -ApplyMigrations:($env:APPLY_MIGRATIONS -eq 'true') -BindRecoveredMembers:($env:BIND_RECOVERED -eq 'true')
+          & .\infra\windows\deploy-development.ps1 -Port ([int]$env:DEPLOY_PORT) -ExpectedCommit $env:DEPLOY_COMMIT -ApplyMigrations:($env:APPLY_MIGRATIONS -eq 'true') -BindRecoveredMembers:($env:BIND_RECOVERED -eq 'true')

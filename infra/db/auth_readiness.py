@@ -72,7 +72,8 @@ def inspect(product, root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--product', choices=PRODUCTS, required=True)
-    parser.add_argument('--config-root', default=r'D:\app-runtime\config\development')
+    runtime_root = os.environ.get('TD_RUNTIME_ROOT', r'D:\app-runtime')
+    parser.add_argument('--config-root', default=os.path.join(runtime_root, 'config', 'development'))
     args = parser.parse_args()
     try:
         report = inspect(args.product, Path(args.config_root))

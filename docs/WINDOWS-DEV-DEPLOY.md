@@ -2,7 +2,14 @@
 
 Runtime: `python -m services.identity.runtime --product split`, served by Waitress on 127.0.0.1. The application factory is `services.backend.mysql_app.create_app`: auth at `/api/auth/*`, authenticated domain routes at `/api/v1/*`, and database-aware `/health` (200 with status ok/mode mysql-identity, 503 if database unavailable).
 
-PM2: `split-server`. Checkout: `D:\network\_share\apps\development\split`, branch dev. Dedicated venv: `D:\app-runtime\venvs\development\split`.
+PM2: `split-server`. Checkout: `SPLIT_DEV_ROOT`, branch dev. Dedicated venv: `<TD_RUNTIME_ROOT>\venvs\development\split`.
+
+Machine layout comes from environment variables, so the folders can move without code changes:
+- `SPLIT_DEV_ROOT`: the dev checkout (default `D:\network_share\apps\development\split`).
+- `TD_RUNTIME_ROOT`: config, tools and venvs outside Git (default `D:\app-runtime`).
+- `TD_DATA_TRANSFER_ROOT`: one-time legacy imports (default `D:\network_share\apps\data-transfer`).
+
+The paths below show the defaults.
 
 External files, never committed:
 - `D:\app-runtime\config\development\split.database.env` (APP_DB_*; APP_DB_NAME must be dev_split_db)
