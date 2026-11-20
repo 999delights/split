@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 # SPLIT_DEV_ROOT: the dev checkout; TD_RUNTIME_ROOT: config, tools and venvs outside Git;
 # TD_DATA_TRANSFER_ROOT: one-time legacy imports.
 $RuntimeRoot = if ($env:TD_RUNTIME_ROOT) { $env:TD_RUNTIME_ROOT } else { 'D:\runtime' }
-$DataTransferRoot = if ($env:TD_DATA_TRANSFER_ROOT) { $env:TD_DATA_TRANSFER_ROOT } else { 'D:\network_share\apps\data-transfer' }
+$DataTransferRoot = if ($env:TD_DATA_TRANSFER_ROOT) { $env:TD_DATA_TRANSFER_ROOT } else { 'D:\runtime\shared-apps\data-transfer' }
 if (-not $DeployRoot) { $DeployRoot = if ($env:SPLIT_DEV_ROOT) { $env:SPLIT_DEV_ROOT } else { 'D:\apps\split\dev' } }
 function Invoke-Checked {
     param([string]$FilePath, [string[]]$Arguments)
