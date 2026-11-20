@@ -1,8 +1,8 @@
 # Development identity provisioning
 
 Windows owns SMTP secrets outside Git:
-- Development: `D:\secrets\apps\development\dddcreate.smtp.env`
-- Staging: `D:\secrets\apps\staging\dddcreate.smtp.env`
+- Development: `D:\secrets\development\dddcreate\smtp.env`
+- Staging: `D:\secrets\staging\dddcreate\smtp.env`
 
 Deploy infrastructure injects SMTP_HOST, SMTP_PORT, SMTP_USER and SMTP_PASSWORD into each backend process. SMTP_SECURITY is `ssl` for implicit TLS (typically 465), or `starttls` (typically 587); default is starttls. The runtime reads these values from the process environment only. It does not read the site's MAIL_* source or copy SMTP credentials into per-product files. Staging is documented only; no staging migration or deployment is enabled here.
 
