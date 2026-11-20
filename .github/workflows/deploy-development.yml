@@ -23,7 +23,7 @@ on:
         default: false
         type: boolean
       apply_migrations:
-        description: Apply pending development migrations after backup
+        description: Apply pending development migrations
         default: false
         type: boolean
 permissions:
