@@ -6,7 +6,7 @@ for (const name of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURITY', 'SMTP_USER', 'SMT
   if (!process.env[name]) throw new Error(`Missing required environment variable: ${name}`);
 }
 // TD_SECRETS_ROOT: env files and keys, one folder per environment and app (see infra/windows/deploy-development.ps1).
-const secretsRoot = process.env.TD_SECRETS_ROOT || 'D:\\secrets';
+const secretsRoot = process.env.TD_SECRETS_ROOT || 'D:\\artium\\secrets';
 const configDir = path.win32.join(secretsRoot, 'development', 'split');
 module.exports = { apps: [{
   name: 'split-server',

@@ -5,16 +5,16 @@ Runtime: `python -m services.identity.runtime --product split`, served by Waitre
 PM2: `split-server`. Checkout: `SPLIT_DEV_ROOT`, branch dev. Dedicated venv: `<TD_RUNTIME_ROOT>\venvs\development\split`.
 
 Machine layout comes from environment variables, so the folders can move without code changes:
-- `SPLIT_DEV_ROOT`: the dev checkout (default `D:\apps\split\dev`).
-- `TD_RUNTIME_ROOT`: config, tools and venvs outside Git (default `D:\runtime`).
+- `SPLIT_DEV_ROOT`: the dev checkout (default `D:\artium\apps\split\dev`).
+- `TD_RUNTIME_ROOT`: config, tools and venvs outside Git (default `D:\artium\runtime`).
 - `TD_DATA_TRANSFER_ROOT`: one-time legacy imports (default `D:\network_share\apps\data-transfer`).
 
 The paths below show the defaults.
 
 External files, never committed:
-- `D:\secrets\development\split\split.database.env` (APP_DB_*; APP_DB_NAME must be dev_split_db)
-- `D:\secrets\development\split\split.identity.env` (see services/identity/identity.env.example; APP_ENV must be development; referenced secret/key files must exist)
-- SMTP imported by `D:\runtime\tools\import_smtp_env.ps1 -Environment development`; five SMTP_* variables passed explicitly to PM2.
+- `D:\artium\secrets\development\split\split.database.env` (APP_DB_*; APP_DB_NAME must be dev_split_db)
+- `D:\artium\secrets\development\split\split.identity.env` (see services/identity/identity.env.example; APP_ENV must be development; referenced secret/key files must exist)
+- SMTP imported by `D:\artium\runtime\tools\import_smtp_env.ps1 -Environment development`; five SMTP_* variables passed explicitly to PM2.
 
 ## First deployment decision
 
