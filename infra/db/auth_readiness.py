@@ -72,10 +72,10 @@ def inspect(product, root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--product', choices=PRODUCTS, required=True)
-    # Default: the product's own folder, D:\secrets\development\<product> (TD_SECRETS_ROOT moves the root).
+    # Default: the product's own folder, D:\artium\secrets\development\<product> (TD_SECRETS_ROOT moves the root).
     parser.add_argument('--config-root')
     args = parser.parse_args()
-    config_root = args.config_root or os.path.join(os.environ.get('TD_SECRETS_ROOT', r'D:\secrets'), 'development', args.product)
+    config_root = args.config_root or os.path.join(os.environ.get('TD_SECRETS_ROOT', r'D:\artium\secrets'), 'development', args.product)
     try:
         report = inspect(args.product, Path(config_root))
     except Exception:

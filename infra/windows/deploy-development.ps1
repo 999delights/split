@@ -10,11 +10,11 @@ $ErrorActionPreference = 'Stop'
 # SPLIT_DEV_ROOT: the dev checkout; TD_RUNTIME_ROOT: tools and venvs outside Git;
 # TD_SECRETS_ROOT: env files and keys, one folder per environment and app (<root>\development\split);
 # TD_DATA_TRANSFER_ROOT: one-time legacy imports.
-$RuntimeRoot = if ($env:TD_RUNTIME_ROOT) { $env:TD_RUNTIME_ROOT } else { 'D:\runtime' }
-$SecretsRoot = if ($env:TD_SECRETS_ROOT) { $env:TD_SECRETS_ROOT } else { 'D:\secrets' }
+$RuntimeRoot = if ($env:TD_RUNTIME_ROOT) { $env:TD_RUNTIME_ROOT } else { 'D:\artium\runtime' }
+$SecretsRoot = if ($env:TD_SECRETS_ROOT) { $env:TD_SECRETS_ROOT } else { 'D:\artium\secrets' }
 $ConfigRoot = Join-Path $SecretsRoot 'development\split'
-$DataTransferRoot = if ($env:TD_DATA_TRANSFER_ROOT) { $env:TD_DATA_TRANSFER_ROOT } else { 'D:\runtime\shared-apps\data-transfer' }
-if (-not $DeployRoot) { $DeployRoot = if ($env:SPLIT_DEV_ROOT) { $env:SPLIT_DEV_ROOT } else { 'D:\apps\split\dev' } }
+$DataTransferRoot = if ($env:TD_DATA_TRANSFER_ROOT) { $env:TD_DATA_TRANSFER_ROOT } else { 'D:\artium\runtime\shared-apps\data-transfer' }
+if (-not $DeployRoot) { $DeployRoot = if ($env:SPLIT_DEV_ROOT) { $env:SPLIT_DEV_ROOT } else { 'D:\artium\apps\split\dev' } }
 function Invoke-Checked {
     param([string]$FilePath, [string[]]$Arguments)
     & $FilePath @Arguments

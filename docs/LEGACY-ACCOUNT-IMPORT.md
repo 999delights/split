@@ -17,12 +17,12 @@ scripts/link_legacy_mysql.py. No backend restart or schema migration is needed.
 4. Confirm imported/exact_rows_verified, refresh mobile, compare group balances.
 
 ```powershell
-& 'D:\runtime\venvs\development\split\Scripts\python.exe' `
+& 'D:\artium\runtime\venvs\development\split\Scripts\python.exe' `
   scripts/link_legacy_mysql.py `
   --source '<private Windows path to imported.db>' `
   --sha256 49cff069aeaa7ae2850a47f6da8678c0289a78f56d82a04e80c6a4705a9e4ac4 `
   --email '999delights@gmail.com' `
-  --database-file 'D:\secrets\development\split\split.database.env'
+  --database-file 'D:\artium\secrets\development\split\split.database.env'
 ```
 
 The target must have exactly one active account with a Google identity and a
