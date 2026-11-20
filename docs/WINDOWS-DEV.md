@@ -13,7 +13,7 @@ at `/api/v1`. No Firebase Auth or legacy preview token is used in this runtime.
   the existing checkout; no automated relocation or deletion is performed.
 - PM2: split-server, loopback port **3400** (deployment checks port ownership).
 - Virtualenv: `D:\runtime\venvs\development\split`.
-- Config: `D:\runtime\config\development\split.database.env` and
+- Config: `D:\secrets\development\split\split.database.env` and
   `split.identity.env` (template: services/identity/split.identity.env.example).
 - MySQL must be `dev_split_db`; APP_DB_* includes separate migration credentials.
 - SMTP injected using `D:\runtime\tools\import_smtp_env.ps1 -Environment development`.

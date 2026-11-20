@@ -72,11 +72,12 @@ def inspect(product, root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--product', choices=PRODUCTS, required=True)
-    runtime_root = os.environ.get('TD_RUNTIME_ROOT', r'D:\runtime')
-    parser.add_argument('--config-root', default=os.path.join(runtime_root, 'config', 'development'))
+    # Default: the product's own folder, D:\secrets\development\<product> (TD_SECRETS_ROOT moves the root).
+    parser.add_argument('--config-root')
     args = parser.parse_args()
+    config_root = args.config_root or os.path.join(os.environ.get('TD_SECRETS_ROOT', r'D:\secrets'), 'development', args.product)
     try:
-        report = inspect(args.product, Path(args.config_root))
+        report = inspect(args.product, Path(config_root))
     except Exception:
         report = {'product': args.product, 'preflight': 'failed',
                   'detail': 'Configuration could not be inspected; values suppressed.'}

@@ -7,9 +7,12 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 # Machine layout comes from settings, so the folders can move without code changes:
-# SPLIT_DEV_ROOT: the dev checkout; TD_RUNTIME_ROOT: config, tools and venvs outside Git;
+# SPLIT_DEV_ROOT: the dev checkout; TD_RUNTIME_ROOT: tools and venvs outside Git;
+# TD_SECRETS_ROOT: env files and keys, one folder per environment and app (<root>\development\split);
 # TD_DATA_TRANSFER_ROOT: one-time legacy imports.
 $RuntimeRoot = if ($env:TD_RUNTIME_ROOT) { $env:TD_RUNTIME_ROOT } else { 'D:\runtime' }
+$SecretsRoot = if ($env:TD_SECRETS_ROOT) { $env:TD_SECRETS_ROOT } else { 'D:\secrets' }
+$ConfigRoot = Join-Path $SecretsRoot 'development\split'
 $DataTransferRoot = if ($env:TD_DATA_TRANSFER_ROOT) { $env:TD_DATA_TRANSFER_ROOT } else { 'D:\runtime\shared-apps\data-transfer' }
 if (-not $DeployRoot) { $DeployRoot = if ($env:SPLIT_DEV_ROOT) { $env:SPLIT_DEV_ROOT } else { 'D:\apps\split\dev' } }
 function Invoke-Checked {
@@ -23,8 +26,8 @@ if ((git -C $repoRoot branch --show-current).Trim() -ne 'dev') { throw 'Split ch
 if (git -C $repoRoot status --porcelain) { throw 'Split checkout has local changes' }
 Invoke-Checked 'git' @('-C', $repoRoot, 'pull', '--ff-only', 'origin', 'dev')
 if ((git -C $repoRoot rev-parse HEAD).Trim() -ne $ExpectedCommit) { throw 'Checkout differs from the tested commit' }
-$database = Join-Path $RuntimeRoot 'config\development\split.database.env'
-$identity = Join-Path $RuntimeRoot 'config\development\split.identity.env'
+$database = Join-Path $ConfigRoot 'split.database.env'
+$identity = Join-Path $ConfigRoot 'split.identity.env'
 if (-not (Test-Path $database) -or -not (Test-Path $identity)) { throw 'Split development configuration missing' }
 . (Join-Path $RuntimeRoot 'tools\import_smtp_env.ps1') -Environment development
 $venv = Join-Path $RuntimeRoot 'venvs\development\split'
