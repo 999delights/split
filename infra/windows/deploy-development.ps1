@@ -42,9 +42,8 @@ try {
     Invoke-Checked $python @('-m', 'services.identity.deployment_check', '--env-file', $identity, '--database-file', $database)
     Invoke-Checked $python @('-m', 'unittest', 'services.identity.test_identity', 'services.identity.test_http', 'services.identity.test_provider', 'services.identity.test_provision', 'services.backend.test_mysql_app', '-q')
     Invoke-Checked $python @('infra\db\db.py', 'db:status', '--env-file', $database)
-    if ($BindRecoveredMembers -and -not $ApplyMigrations) { throw 'Binding repair requires backup/migration mode' }
+    if ($BindRecoveredMembers -and -not $ApplyMigrations) { throw 'Binding repair requires migration mode' }
     if ($ApplyMigrations) {
-        Invoke-Checked $python @((Join-Path $RuntimeRoot 'tools\backup_app_database.py'), '--environment', 'development', '--app', 'split')
         Invoke-Checked $python @('infra\db\db.py', 'db:migrate', '--env-file', $database)
     }
     if ($BindRecoveredMembers) {
