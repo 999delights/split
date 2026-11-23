@@ -8,6 +8,7 @@ on:
       - infra/db/**
       - infra/windows/**
       - infra/pm2/**
+      - infra/paths/**
       - requirements*.txt
       - .github/workflows/database-checks.yml
       - .github/workflows/deploy-development.yml

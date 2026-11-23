@@ -1,0 +1,33 @@
+{
+  "roots": {
+    "artium": {
+      "variable": "TD_ARTIUM_ROOT",
+      "windows": "D:\\artium"
+    },
+    "secrets": {
+      "variable": "TD_SECRETS_ROOT",
+      "under": "secrets"
+    },
+    "runtime": {
+      "variable": "TD_RUNTIME_ROOT",
+      "under": "runtime"
+    },
+    "share": {
+      "variable": "TD_SHARE_ROOT",
+      "under": "share"
+    },
+    "apps": {
+      "variable": "TD_APPS_ROOT",
+      "under": "apps"
+    },
+    "library": {
+      "variable": "TD_LIBRARY_ROOT",
+      "windows": "E:\\library"
+    },
+    "games": {
+      "variable": "TD_GAMES_ROOT",
+      "windows": "D:\\games"
+    }
+  },
+  "tools": {}
+}

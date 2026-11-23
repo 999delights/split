@@ -1,0 +1,133 @@
+[
+  {
+    "about": "Windows: today's folders by default",
+    "platform": "win32",
+    "env": {},
+    "root": "secrets",
+    "parts": [
+      "development",
+      "split",
+      "split.database.env"
+    ],
+    "expect": "D:\\artium\\secrets\\development\\split\\split.database.env"
+  },
+  {
+    "about": "Windows: the base moves every root under it",
+    "platform": "win32",
+    "env": {
+      "TD_ARTIUM_ROOT": "F:\\company"
+    },
+    "root": "runtime",
+    "parts": [
+      "data",
+      "development",
+      "split"
+    ],
+    "expect": "F:\\company\\runtime\\data\\development\\split"
+  },
+  {
+    "about": "Windows: a root's own variable wins over the base",
+    "platform": "win32",
+    "env": {
+      "TD_ARTIUM_ROOT": "F:\\company",
+      "TD_SECRETS_ROOT": "G:\\vault"
+    },
+    "root": "secrets",
+    "parts": [
+      "development"
+    ],
+    "expect": "G:\\vault\\development"
+  },
+  {
+    "about": "Windows: roots outside the base keep their own folder",
+    "platform": "win32",
+    "env": {
+      "TD_ARTIUM_ROOT": "F:\\company"
+    },
+    "root": "games",
+    "parts": [
+      "silkroad",
+      "phBot Testing",
+      "Plugins"
+    ],
+    "expect": "D:\\games\\silkroad\\phBot Testing\\Plugins"
+  },
+  {
+    "about": "Windows: apps",
+    "platform": "win32",
+    "env": {},
+    "root": "apps",
+    "parts": [
+      "split",
+      "dev"
+    ],
+    "expect": "D:\\artium\\apps\\split\\dev"
+  },
+  {
+    "about": "Linux: the base sets the roots under it",
+    "platform": "linux",
+    "env": {
+      "TD_ARTIUM_ROOT": "/fixture/company"
+    },
+    "root": "secrets",
+    "parts": [
+      "staging",
+      "split"
+    ],
+    "expect": "/fixture/company/secrets/staging/split"
+  },
+  {
+    "about": "Linux: a root's own variable",
+    "platform": "linux",
+    "env": {
+      "TD_RUNTIME_ROOT": "/fixture/runtime"
+    },
+    "root": "runtime",
+    "parts": [
+      "tools"
+    ],
+    "expect": "/fixture/runtime/tools"
+  },
+  {
+    "about": "Linux: an unset base is an error naming both variables",
+    "platform": "linux",
+    "env": {},
+    "root": "runtime",
+    "parts": [],
+    "error": [
+      "TD_RUNTIME_ROOT",
+      "TD_ARTIUM_ROOT"
+    ]
+  },
+  {
+    "about": "Linux: roots outside the base are never derived from it",
+    "platform": "linux",
+    "env": {
+      "TD_ARTIUM_ROOT": "/fixture/company"
+    },
+    "root": "games",
+    "parts": [],
+    "error": [
+      "TD_GAMES_ROOT"
+    ]
+  },
+  {
+    "about": "an unknown root is an error",
+    "platform": "win32",
+    "env": {},
+    "root": "nowhere",
+    "parts": [],
+    "error": [
+      "nowhere"
+    ]
+  },
+  {
+    "about": "an unknown program is an error",
+    "platform": "win32",
+    "env": {},
+    "tool": "python",
+    "error": [
+      "python"
+    ]
+  }
+]
