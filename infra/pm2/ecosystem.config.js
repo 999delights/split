@@ -5,16 +5,16 @@ if (!process.env.SPLIT_DEV_PYTHON) throw new Error('Split development Python req
 for (const name of ['SMTP_HOST', 'SMTP_PORT', 'SMTP_SECURITY', 'SMTP_USER', 'SMTP_PASSWORD']) {
   if (!process.env[name]) throw new Error(`Missing required environment variable: ${name}`);
 }
-// TD_SECRETS_ROOT: env files and keys, one folder per environment and app (see infra/windows/deploy-development.ps1).
-const secretsRoot = process.env.TD_SECRETS_ROOT || 'D:\\artium\\secrets';
-const configDir = path.win32.join(secretsRoot, 'development', 'split');
+// Env files and keys, one folder per environment and app, in the secrets folder (infra/paths: TD_SECRETS_ROOT).
+const { hostPaths } = require(path.join(__dirname, '..', 'paths', 'hostPaths.cjs'));
+const configDir = hostPaths({ env: process.env }).path('secrets', 'development', 'split');
 module.exports = { apps: [{
   name: 'split-server',
   script: process.env.SPLIT_DEV_PYTHON,
   interpreter: 'none',
   args: ['-m', 'services.identity.runtime', '--product', 'split',
-    '--env-file', path.win32.join(configDir, 'split.identity.env'),
-    '--database-file', path.win32.join(configDir, 'split.database.env'),
+    '--env-file', path.join(configDir, 'split.identity.env'),
+    '--database-file', path.join(configDir, 'split.database.env'),
     '--port', String(port)],
   cwd: path.resolve(__dirname, '..', '..'),
   autorestart: true,

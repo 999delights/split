@@ -8,6 +8,10 @@ from pathlib import Path
 import subprocess
 import sys
 
+if str(Path(__file__).resolve().parents[2]) not in sys.path:
+    sys.path.append(str(Path(__file__).resolve().parents[2]))  # the repository, for infra.paths
+from infra.paths.host_paths import host_path  # noqa: E402
+
 PRODUCTS = ('statz', 'bliss', 'sixth', 'split')
 REQUIRED = ('APP_ENV', 'AUTH_PUBLIC_URL', 'AUTH_SECRET_FILE',
             'AUTH_EMAIL_KEY_FILE', 'GOOGLE_CLIENT_IDS', 'APPLE_CLIENT_IDS',
@@ -72,10 +76,10 @@ def inspect(product, root):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--product', choices=PRODUCTS, required=True)
-    # Default: the product's own folder, D:\artium\secrets\development\<product> (TD_SECRETS_ROOT moves the root).
+    # Default: the product's own folder, <secrets>\development\<product> (infra/paths: TD_SECRETS_ROOT).
     parser.add_argument('--config-root')
     args = parser.parse_args()
-    config_root = args.config_root or os.path.join(os.environ.get('TD_SECRETS_ROOT', r'D:\artium\secrets'), 'development', args.product)
+    config_root = args.config_root or host_path('secrets', 'development', args.product)
     try:
         report = inspect(args.product, Path(config_root))
     except Exception:
