@@ -3,9 +3,9 @@ on:
   workflow_call:
   push:
     branches: [dev, 'codex/auth-*']
-    paths: ['services/backend/**', 'services/identity/**', 'infra/db/**', 'infra/windows/**', 'infra/pm2/**', 'infra/paths/**', '.github/workflows/deploy-development.yml', '.github/workflows/database-checks.yml']
+    paths: ['services/backend/**', 'services/identity/**', 'infra/db/**', 'infra/windows/**', 'infra/pm2/**', 'infra/paths/**', '.github/workflows/deploy-development.yml', '.github/workflows/database-checks.yml', '**/requirements*.txt']
   pull_request:
-    paths: ['services/backend/**', 'services/identity/**', 'infra/db/**', 'infra/windows/**', 'infra/pm2/**', 'infra/paths/**', '.github/workflows/deploy-development.yml', '.github/workflows/database-checks.yml']
+    paths: ['services/backend/**', 'services/identity/**', 'infra/db/**', 'infra/windows/**', 'infra/pm2/**', 'infra/paths/**', '.github/workflows/deploy-development.yml', '.github/workflows/database-checks.yml', '**/requirements*.txt']
 permissions:
   contents: read
 jobs:
@@ -27,6 +27,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      # The DEV deploy installs every requirements file into one environment: a package needs one pin in all of them
+      # (2026-11-24: a per-folder python-dotenv bump stopped the deploy). Resolve them together, as the deploy does.
+      - name: Every requirements file installs together
+        run: python -m pip install --dry-run --ignore-installed --quiet $(git ls-files '*requirements*.txt' | sed 's/^/-r /')
       - name: Validate PowerShell deployment syntax
         shell: pwsh
         run: |
