@@ -2,28 +2,23 @@
 #
 # - Every Monday it checks the folders below and opens PRs into dev (the default branch; no target-branch
 #   on purpose, so these settings also apply to security updates).
-# - Compatibility: packages that must move together are one family and never update apart. Each family has a
-#   minor/patch group and a "-major" group: nuxt-vue (nuxt, @nuxt/*, @nuxtjs/*, vue, vue-router, pinia),
-#   test-tools (vitest, @vitest/*, happy-dom, jsdom, @nuxt/test-utils, @vue/test-utils), vite (vite, @vitejs/*,
-#   vite-plugin-*), vee-validate, stripe-js, flask (Flask, Flask-*, Werkzeug, Jinja2, ...), numpy (numpy, scipy,
-#   trimesh, manifold3d, ...). three + @types/three are 0.x, so they are one group of any update type.
-#   Everything else: one "minor-patch" group per folder. A package belongs to its most specific group only.
-# - Majors: a family's majors come together in its "-major" PR; any other major comes as its own PR. The label
-#   workflow (.github/workflows/dependabot-labels.yml) marks them "major-needs-code" and they wait for a session
-#   that adapts the code. Nothing is ever auto-merged.
-# - 0.x packages without a family (exclude-patterns) come as their own PRs: under semver a 0.x minor can break,
-#   so the label workflow marks those minors too.
-# - cooldown: a new release must be 7 days old before it is proposed (broken or malicious releases are usually
-#   pulled by then). Security updates skip the cooldown.
-# - At most 5 open PRs per folder (the default): the groups are made first, then single majors fill the rest.
-# - pip: versioning-strategy increase-if-necessary. A range (">=3.0,<4") only changes when the newest version
-#   falls outside it; exact pins (==) are still bumped. Without it every ranged package got its own PR.
+# - Python: every requirements folder is in ONE entry (directories), because the DEV deploy installs them together
+#   into one environment: a package must have the same pin in every file. Groups span all the folders: one
+#   "minor-patch" PR for the whole repo, "flask" / "flask-major" for Flask and its family, and each other major or
+#   0.x package as one PR across every file (group-by: dependency-name). On 2026-11-24 a per-folder security bump
+#   of python-dotenv left 1.0.0 in another file and stopped the DEV deploy.
+#   Security updates are made per folder by Dependabot whatever the groups; the "MySQL migration checks" workflow
+#   installs every requirements file together, so a PR that splits a pin fails there before the merge.
+# - Majors and 0.x minors are labelled "major-needs-code" (.github/workflows/dependabot-labels.yml) and wait for a
+#   session that adapts the code. Nothing is auto-merged.
+# - pip: versioning-strategy increase-if-necessary (a range changes only when the newest version falls outside it).
+# - cooldown: a new release must be 7 days old before it is proposed. Security updates skip it.
 # - Not here yet: the Flutter app (apps/mobile, pub). It is built and checked on the Mac, which has no
 #   validation road yet, so its updates would land untested.
 version: 2
 updates:
   - package-ecosystem: pip
-    directory: /infra/db
+    directories: ["/infra/db","/services/identity"]
     versioning-strategy: increase-if-necessary
     schedule:
       interval: weekly
@@ -34,26 +29,7 @@ updates:
       default-days: 7
     labels: [dependencies]
     commit-message:
-      prefix: "deps(infra-db)"
-    groups:
-      minor-patch:
-        patterns: ["*"]
-        exclude-patterns: ["sqlparse"]
-        update-types: [minor, patch]
-
-  - package-ecosystem: pip
-    directory: /services/identity
-    versioning-strategy: increase-if-necessary
-    schedule:
-      interval: weekly
-      day: monday
-      time: "05:00"
-      timezone: Europe/Bucharest
-    cooldown:
-      default-days: 7
-    labels: [dependencies]
-    commit-message:
-      prefix: "deps(services-identity)"
+      prefix: "deps(python)"
     groups:
       flask:
         patterns: ["flask","flask-*","werkzeug","jinja2","itsdangerous","click","blinker","markupsafe"]
@@ -61,8 +37,16 @@ updates:
       flask-major:
         patterns: ["flask","flask-*","werkzeug","jinja2","itsdangerous","click","blinker","markupsafe"]
         update-types: [major]
+      zero-x:
+        patterns: ["sqlparse"]
+        group-by: dependency-name
+      major:
+        patterns: ["*"]
+        update-types: [major]
+        group-by: dependency-name
       minor-patch:
         patterns: ["*"]
+        exclude-patterns: ["sqlparse"]
         update-types: [minor, patch]
 
   - package-ecosystem: github-actions
