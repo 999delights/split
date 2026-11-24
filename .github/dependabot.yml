@@ -1,0 +1,61 @@
+# Dependabot: automatic dependency updates for split.
+#
+# - Every Monday it checks the folders below and opens PRs into dev (the default branch; no target-branch
+#   on purpose, so these settings also apply to security updates).
+# - Minor and patch updates: ONE grouped PR per folder. Normal road: the PR checks (where they run), merge
+#   into dev, the DEV deploy workflow.
+# - Major updates: one PR each. .github/workflows/dependabot-labels.yml labels them "major-needs-code";
+#   they wait for a session that adapts the code. Never merge them as they are.
+# - 0.x packages are kept out of the groups (a 0.x minor can break) and get the same label when the minor changes.
+# - cooldown: a new release must be 3 days old before it is proposed. Security updates are on and skip it.
+# - Not here yet: the Flutter app (apps/mobile, pub). It is built and checked on the Mac, which has no
+#   validation road yet, so its updates would land untested.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /infra/db
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Bucharest
+    cooldown:
+      default-days: 3
+    labels: [dependencies]
+    commit-message:
+      prefix: "deps(infra-db)"
+    groups:
+      minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: pip
+    directory: /services/identity
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Bucharest
+    cooldown:
+      default-days: 3
+    labels: [dependencies]
+    commit-message:
+      prefix: "deps(services-identity)"
+    groups:
+      minor-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "05:00"
+      timezone: Europe/Bucharest
+    cooldown:
+      default-days: 3
+    labels: [dependencies]
+    commit-message:
+      prefix: "deps(actions)"
+    groups:
+      minor-patch:
+        update-types: [minor, patch]
