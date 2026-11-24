@@ -1,0 +1,47 @@
+name: Dependabot labels
+
+# Labels Dependabot PRs that need code changes before they can be merged: a major update, or a 0.x minor
+# update (breaking under semver). Grouped minor/patch PRs stay unlabelled and go the normal road.
+# Dependabot PRs only, on our own runner: no checkout, no secrets (only the PR's own token).
+on:
+  pull_request:
+    branches: [dev]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  label:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 5
+    steps:
+      - id: metadata
+        uses: dependabot/fetch-metadata@v3
+      - name: Label updates that need code changes
+        uses: actions/github-script@v9
+        env:
+          UPDATED: ${{ steps.metadata.outputs.updated-dependencies-json }}
+        with:
+          script: |
+            const label = 'major-needs-code';
+            const parts = version => String(version).replace(/^v/, '').split(/[.+-]/).map(Number);
+            const needsCode = JSON.parse(process.env.UPDATED || '[]').filter(dep => {
+              if (dep.updateType === 'version-update:semver-major') return true;
+              if (!dep.prevVersion || !dep.newVersion) return false;
+              const [prevMajor, prevMinor] = parts(dep.prevVersion);
+              const [newMajor, newMinor] = parts(dep.newVersion);
+              return prevMajor === 0 && newMajor === 0 && prevMinor !== newMinor;
+            });
+            const { owner, repo } = context.repo;
+            const pr = context.payload.pull_request;
+            const labelled = pr.labels.some(item => item.name === label);
+            if (needsCode.length) {
+              core.notice(`Needs code changes: ${needsCode.map(dep => `${dep.dependencyName} ${dep.prevVersion} -> ${dep.newVersion}`).join(', ')}`);
+              if (!labelled) await github.rest.issues.addLabels({ owner, repo, issue_number: pr.number, labels: [label] });
+            } else if (labelled) {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number: pr.number, name: label });
+            }
