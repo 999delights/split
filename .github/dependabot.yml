@@ -16,12 +16,15 @@
 # - cooldown: a new release must be 7 days old before it is proposed (broken or malicious releases are usually
 #   pulled by then). Security updates skip the cooldown.
 # - At most 5 open PRs per folder (the default): the groups are made first, then single majors fill the rest.
+# - pip: versioning-strategy increase-if-necessary. A range (">=3.0,<4") only changes when the newest version
+#   falls outside it; exact pins (==) are still bumped. Without it every ranged package got its own PR.
 # - Not here yet: the Flutter app (apps/mobile, pub). It is built and checked on the Mac, which has no
 #   validation road yet, so its updates would land untested.
 version: 2
 updates:
   - package-ecosystem: pip
     directory: /infra/db
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: weekly
       day: monday
@@ -40,6 +43,7 @@ updates:
 
   - package-ecosystem: pip
     directory: /services/identity
+    versioning-strategy: increase-if-necessary
     schedule:
       interval: weekly
       day: monday
